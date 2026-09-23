@@ -1,0 +1,157 @@
+{
+  "generated_at": "2026-09-23T10:38:59.641923+09:00",
+  "how_to_use": "이 파일을 업로드해 예측 오차 기반으로 baselines/assumptions 튜닝을 요청하세요.",
+  "assumptions_snapshot": {
+    "target_profit_rate": 0.15,
+    "min_roi_floor": 0.08,
+    "win_target": 0.6,
+    "competition": {
+      "ref_bidders": 5,
+      "k_ratio_per_bidder": 1.4,
+      "discount_boost": 0.9,
+      "fail_damp": 0.14,
+      "history_weight": 0.4
+    },
+    "score_weights": {
+      "liquidity": 0.4,
+      "profit": 0.25,
+      "win": 0.1,
+      "rights": 0.15,
+      "margin": 0.1
+    },
+    "liquidity_gate": 0.7
+  },
+  "records": [
+    {
+      "id": "2024타경12345",
+      "region": "경기 수원시",
+      "type": "아파트",
+      "fail_rounds": 1,
+      "sale_date": "2026-10-14",
+      "snapshot_date": "2026-09-23",
+      "predicted": {
+        "ratio_mean": 86.3,
+        "win_prob": 0.134,
+        "bidders": 6.5,
+        "recommended_bid": 562800000,
+        "net_profit": 47818328,
+        "roi": 0.0812,
+        "score": 61,
+        "liquidity": 80
+      },
+      "actual": {
+        "result": "낙찰",
+        "won_bid": 632000000,
+        "ratio": 87.8,
+        "bidders": 8,
+        "would_win": false,
+        "resale_price": null,
+        "actual_profit": null,
+        "resale_date": null
+      },
+      "errors": {
+        "ratio_err": 1.5,
+        "bidders_err": 1.5,
+        "win_brier": 0.018
+      }
+    },
+    {
+      "id": "2024타경45678",
+      "region": "경기 수원시",
+      "type": "아파트",
+      "fail_rounds": 1,
+      "sale_date": "2026-10-14",
+      "snapshot_date": "2026-09-23",
+      "predicted": {
+        "ratio_mean": 86.7,
+        "win_prob": 0.3441,
+        "bidders": 6.7,
+        "recommended_bid": 820341666,
+        "net_profit": 70527680,
+        "roi": 0.0813,
+        "score": 61,
+        "liquidity": 76
+      },
+      "actual": {
+        "result": "낙찰",
+        "won_bid": 905000000,
+        "ratio": 92.3,
+        "bidders": 11,
+        "would_win": false,
+        "resale_price": 1180000000,
+        "actual_profit": 205000000,
+        "resale_date": "2027-03"
+      },
+      "errors": {
+        "ratio_err": 5.6,
+        "bidders_err": 4.3,
+        "win_brier": 0.118,
+        "profit_err": 134472320,
+        "profit_err_pct": 1.907,
+        "resale_vs_market_pct": 0.054
+      }
+    },
+    {
+      "id": "2024타경34567",
+      "region": "인천 연수구",
+      "type": "오피스텔",
+      "fail_rounds": 1,
+      "sale_date": "2026-10-21",
+      "snapshot_date": "2026-09-23",
+      "predicted": {
+        "ratio_mean": 71.2,
+        "win_prob": 0.7549,
+        "bidders": 4.5,
+        "recommended_bid": 338625000,
+        "net_profit": 41402417,
+        "roi": 0.1089,
+        "score": 53,
+        "liquidity": 58
+      },
+      "actual": {
+        "result": "낙찰",
+        "won_bid": 330000000,
+        "ratio": 76.7,
+        "bidders": 5,
+        "would_win": true,
+        "resale_price": 500000000,
+        "actual_profit": 140000000,
+        "resale_date": "2027-02"
+      },
+      "errors": {
+        "ratio_err": 5.5,
+        "bidders_err": 0.5,
+        "win_brier": 0.06,
+        "profit_err": 98597583,
+        "profit_err_pct": 2.381,
+        "resale_vs_market_pct": -0.038
+      }
+    }
+  ],
+  "summary": {
+    "n_resolved": 3,
+    "n_with_resale": 2,
+    "ratio_bias": 4.2,
+    "ratio_mae": 4.2,
+    "bidders_bias": 2.1,
+    "win_brier": 0.065,
+    "profit_bias_pct": 2.14,
+    "market_bias_pct": 0.01,
+    "by_region_type": {
+      "경기 수원시·아파트": {
+        "ratio_bias": 3.55,
+        "n": 2
+      },
+      "인천 연수구·오피스텔": {
+        "ratio_bias": 5.5,
+        "n": 1
+      }
+    },
+    "suggested_adjustments": [
+      "전체 낙찰가율이 예측보다 평균 +4.2%p → baseline mean을 +4.2%p 방향으로 보정 검토",
+      "경기 수원시·아파트: 낙찰가율 예측 오차 +3.5%p(n=2) → 해당 셀 baseline mean 보정",
+      "응찰자 수가 예측보다 평균 +2.1명 → competition base bidders +2.1 방향 보정",
+      "성공률 Brier 0.065 (0에 가까울수록 정확) → 높으면 std·경쟁도 재조정"
+    ]
+  }
+}

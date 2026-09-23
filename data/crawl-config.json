@@ -1,0 +1,13 @@
+{
+  "note": "법원경매정보 크롤링 조건. 시도/용도/기간/최소감정가로 수집 범위를 좁힌다.",
+  "sido": ["경기도", "서울특별시", "인천광역시"],
+  "usage": ["아파트", "오피스텔", "연립다세대"],
+  "min_appraisal": 300000000,
+  "sale_date_from_days": 0,
+  "sale_date_to_days": 21,
+  "max_pages": 5,
+  "page_size": 40,
+  "fetch_rights": true,
+  "polite_delay_sec": 0.8,
+  "max_properties": 60
+}

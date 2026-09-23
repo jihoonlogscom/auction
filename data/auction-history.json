@@ -1,0 +1,12 @@
+[
+  {"id":"2023타경1111","region":"경기 수원시","type":"아파트","appraisal":650000000,"won_bid":585000000,"resale_price":690000000,"resale_date":"2024-08","costs":42000000,"bidders":7,"fail_rounds":1},
+  {"id":"2023타경2222","region":"경기 수원시","type":"아파트","appraisal":480000000,"won_bid":452000000,"resale_price":505000000,"resale_date":"2024-05","costs":31000000,"bidders":4,"fail_rounds":0},
+  {"id":"2023타경3333","region":"서울 노원구","type":"아파트","appraisal":720000000,"won_bid":701000000,"resale_price":760000000,"resale_date":"2024-11","costs":48000000,"bidders":11,"fail_rounds":0},
+  {"id":"2023타경4444","region":"서울 노원구","type":"빌라","appraisal":310000000,"won_bid":238000000,"resale_price":305000000,"resale_date":"2024-03","costs":24000000,"bidders":3,"fail_rounds":2},
+  {"id":"2023타경5555","region":"인천 연수구","type":"오피스텔","appraisal":390000000,"won_bid":297000000,"resale_price":372000000,"resale_date":"2024-09","costs":28000000,"bidders":5,"fail_rounds":1},
+  {"id":"2023타경6666","region":"인천 연수구","type":"아파트","appraisal":560000000,"won_bid":496000000,"resale_price":548000000,"resale_date":"2024-06","costs":35000000,"bidders":6,"fail_rounds":1},
+  {"id":"2023타경7777","region":"경기 수원시","type":"아파트","appraisal":920000000,"won_bid":892000000,"resale_price":1050000000,"resale_date":"2024-10","costs":62000000,"bidders":12,"fail_rounds":0},
+  {"id":"2023타경8888","region":"인천 부평구","type":"아파트","appraisal":520000000,"won_bid":505000000,"resale_price":560000000,"resale_date":"2024-07","costs":34000000,"bidders":5,"fail_rounds":0},
+  {"id":"2023타경9999","region":"서울 노원구","type":"아파트","appraisal":810000000,"won_bid":798000000,"resale_price":845000000,"resale_date":"2024-12","costs":51000000,"bidders":9,"fail_rounds":0},
+  {"id":"2023타경1010","region":"인천 연수구","type":"빌라","appraisal":300000000,"won_bid":208000000,"resale_price":268000000,"resale_date":"2024-04","costs":22000000,"bidders":4,"fail_rounds":2}
+]

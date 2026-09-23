@@ -1,0 +1,54 @@
+name: 경매 자동 수집·분석
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 21 * * *"     # 매일 06:00 KST (전날 21:00 UTC) 수집·분석
+  push:
+    branches: [main]
+    paths:
+      - "data/crawl-config.json"
+      - "data/baselines.json"
+      - "data/assumptions.json"
+      - "data/auction-history.json"
+      - "scripts/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auction-pipeline
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 물건 수집 (법원경매정보)
+        run: python scripts/crawl.py || python scripts/crawl.py --sample
+        # 라이브 수집 실패 시 파이프라인이 멈추지 않도록 샘플로 폴백
+
+      - name: 분석 (시세 조회·적정입찰·성공률·순이익·점수)
+        env:
+          MOLIT_SERVICE_KEY: ${{ secrets.MOLIT_SERVICE_KEY }}
+        run: python scripts/analyze.py
+
+      - name: 예측 스냅샷·실제결과 대조·학습파일 갱신
+        run: python scripts/track.py
+
+      - name: 결과 커밋
+        run: |
+          git config user.name  "auction-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/properties.json data/analysis.json data/predictions.json data/outcomes.json data/calibration.json
+          if git diff --cached --quiet; then
+            echo "변경 없음 — 커밋 생략"
+          else
+            git commit -m "chore: 경매 물건 자동 수집·분석 갱신 [skip ci]"
+            git push
+          fi
