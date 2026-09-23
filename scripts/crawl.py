@@ -56,6 +56,7 @@ class Session:
     def _headers(self, json_body=True):
         h = {"User-Agent": UA, "Referer": BASE + "/pgj/index.on",
              "Accept": "application/json, text/plain, */*",
+             "Accept-Language": "ko-KR,ko;q=0.9",
              "Accept-Encoding": "gzip", "Origin": BASE}
         if json_body:
             h["Content-Type"] = "application/json;charset=UTF-8"
@@ -69,13 +70,21 @@ class Session:
             raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read()
         return raw.decode("utf-8", "ignore")
 
-    def bootstrap(self):
-        """메인 페이지를 한 번 열어 세션 쿠키를 확보."""
-        req = urllib.request.Request(BASE + "/pgj/index.on", headers=self._headers(False))
-        with urllib.request.urlopen(req, timeout=20) as r:
-            sc = r.headers.get_all("Set-Cookie") or []
-            self.cookie = "; ".join(c.split(";")[0] for c in sc)
-        return bool(self.cookie)
+    def bootstrap(self, retries=2, timeout=25):
+        """메인 페이지를 열어 세션 쿠키 확보. 연결 실패는 예외를 던지지 않고 False 반환."""
+        self.last_err = None
+        for attempt in range(retries + 1):
+            try:
+                req = urllib.request.Request(BASE + "/pgj/index.on", headers=self._headers(False))
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    sc = r.headers.get_all("Set-Cookie") or []
+                    self.cookie = "; ".join(c.split(";")[0] for c in sc)
+                return bool(self.cookie) or True   # 쿠키가 비어도 접속 자체는 성공
+            except Exception as e:  # noqa: BLE001 — 타임아웃/차단/DNS 등
+                self.last_err = f"{type(e).__name__}: {e}"
+                if attempt < retries:
+                    time.sleep(2.0 * (attempt + 1))
+        return False
 
     def post_json(self, path, body):
         data = json.dumps(body).encode("utf-8")
@@ -199,8 +208,11 @@ def sample_properties():
 # --------------------- main ---------------------
 def crawl(cfg):
     sess = Session()
-    if not sess.bootstrap():
-        print("경고: 세션 확보 실패 — 응답 확인 필요", file=sys.stderr)
+    if not sess.bootstrap(retries=cfg.get("retries", 2), timeout=cfg.get("connect_timeout", 25)):
+        print(f"라이브 수집 불가: courtauction.go.kr 접속 실패 ({sess.last_err}).\n"
+              f"  → GitHub Actions(해외 IP)에서는 법원경매정보가 지오블록/무응답일 수 있습니다.\n"
+              f"  → README '라이브 수집이 안 될 때' 참고(한국 IP 러너/프록시).", file=sys.stderr)
+        return []
     props, seen = [], set()
     for page in range(1, cfg.get("max_pages", 5) + 1):
         try:
@@ -247,20 +259,37 @@ def crawl(cfg):
 def main():
     cfg = load("crawl-config.json")
     use_sample = "--sample" in sys.argv
+
     if use_sample:
         props = sample_properties()
         for p in props:
             p.pop("_case_key", None)
-        print(f"[sample] {len(props)}건 사용")
-    else:
+        save("properties.json", props)
+        print(f"[sample] {len(props)}건 사용 → data/properties.json 저장")
+        return
+
+    try:
         props = crawl(cfg)
-        print(f"[crawl] {len(props)}건 수집")
-        if not props:
-            # 수집 실패 시 기존 properties.json 보존(사이트 개편 등)
-            print("수집 0건 — 기존 properties.json 유지", file=sys.stderr)
-            return
-    save("properties.json", props)
-    print("→ data/properties.json 저장")
+    except Exception as e:  # noqa: BLE001 — 어떤 경우에도 트레이스백 없이 종료
+        print(f"수집 오류: {type(e).__name__}: {e}", file=sys.stderr)
+        props = []
+
+    if props:
+        save("properties.json", props)
+        print(f"[crawl] {len(props)}건 수집 → data/properties.json 저장")
+        return
+
+    # 라이브 수집 실패: 기존 데이터가 있으면 보존(재분석 계속), 없으면 샘플로 시작
+    existing = os.path.join(DATA, "properties.json")
+    if os.path.exists(existing):
+        print("라이브 수집 실패 — 기존 properties.json 유지(분석·추적은 계속 진행)", file=sys.stderr)
+    else:
+        props = sample_properties()
+        for p in props:
+            p.pop("_case_key", None)
+        save("properties.json", props)
+        print(f"라이브 수집 실패 — 최초 실행이라 샘플 {len(props)}건으로 시작", file=sys.stderr)
+    # 항상 정상 종료(exit 0)
 
 
 if __name__ == "__main__":

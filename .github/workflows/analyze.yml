@@ -30,8 +30,8 @@ jobs:
           python-version: "3.12"
 
       - name: 물건 수집 (법원경매정보)
-        run: python scripts/crawl.py || python scripts/crawl.py --sample
-        # 라이브 수집 실패 시 파이프라인이 멈추지 않도록 샘플로 폴백
+        run: python scripts/crawl.py
+        # 라이브 실패 시 크롤러가 스스로 기존 데이터 보존/샘플 폴백(항상 정상 종료)
 
       - name: 분석 (시세 조회·적정입찰·성공률·순이익·점수)
         env:
