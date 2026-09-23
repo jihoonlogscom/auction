@@ -17,7 +17,7 @@
 
 표준 라이브러리만 사용.
 """
-import os, sys, json, re, ssl, time, threading
+import os, sys, json, re, ssl, time, math, random, socket, threading
 import http.cookiejar
 import urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
@@ -179,41 +179,38 @@ def _to_int(x, d=0):
 
 
 # --------------------- 수집 ---------------------
-_local = threading.local()
-
-
-def _session():
-    """스레드별로 '데운' 세션(JSESSIONID 확보) 1개를 만들어 재사용.
-    동시성 1이면 전 페이지가 같은 세션을 공유(= 검증된 동작)."""
-    op = getattr(_local, "op", None)
-    if op is None:
-        op = make_opener()          # 메인 페이지 GET으로 세션 쿠키 확보
-        _local.op = op
-    return op
-
-
-def fetch_page(page, page_size, bgn, end, timeout=25):
-    """검색 1페이지. 실패 시 None, 결과 없음은 []."""
+def fetch_page(opener, page, bgn, end, timeout=12, retries=3):
+    """검색 1페이지. 지수 백오프+지터 재시도. 실패 None, (rows, total_cnt) 반환."""
     headers = {"User-Agent": UA, "Content-Type": "application/json;charset=UTF-8",
                "Accept": "application/json", "Accept-Language": "ko-KR,ko;q=0.9",
                "Referer": BASE + "/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml",
                "submissionid": "sbm_selectGdsDtlSrch", "SC-Pgmid": "PGJ151M01"}
     payload = {
-        "dma_pageInfo": {"pageNo": str(page), "pageSize": str(page_size), "totalYn": "Y" if page == 1 else "N"},
+        "dma_pageInfo": {"pageNo": str(page), "pageSize": "40", "totalYn": "Y" if page == 1 else "N"},
         "dma_srchGdsDtlSrchInfo": {"mvprpRletDvsCd": "00031R", "cortAuctnSrchCondCd": "0004601",
                                    "cortStDvs": "0", "bidBgngYmd": bgn, "bidEndYmd": end, "pgmId": "PGJ151M01"},
     }
-    try:
-        req = urllib.request.Request(SEARCH_EP, data=json.dumps(payload).encode("utf-8"),
-                                     headers=headers, method="POST")
-        with _session().open(req, timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8")).get("data", {}).get("dlt_srchResult", [])
-    except urllib.error.HTTPError as e:
-        print(f"[crawl] p{page} 오류: HTTP {e.code}", file=sys.stderr)
-        return None
-    except Exception as e:  # noqa: BLE001
-        print(f"[crawl] p{page} 오류: {type(e).__name__}", file=sys.stderr)
-        return None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(SEARCH_EP, data=json.dumps(payload).encode("utf-8"),
+                                         headers=headers, method="POST")
+            with opener.open(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode("utf-8")).get("data", {})
+                total = None
+                if page == 1:
+                    try:
+                        total = int(data.get("dma_pageInfo", {}).get("totalCnt", 0))
+                    except Exception:
+                        total = None
+                return data.get("dlt_srchResult", []), total
+        except urllib.error.HTTPError as e:
+            if attempt == retries - 1:
+                print(f"[crawl] p{page} HTTP {e.code}", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001
+            if attempt == retries - 1:
+                print(f"[crawl] p{page} {type(e).__name__}", file=sys.stderr)
+        time.sleep(0.35 * (attempt + 1) + random.uniform(0.05, 0.15))
+    return None, None
 
 
 def row_to_item(row, f):
@@ -252,44 +249,51 @@ def crawl(cfg):
          "min_appr": cfg.get("min_appraisal", 50000000),
          "max_appr": cfg.get("max_appraisal", 5000000000)}
     days = cfg.get("sale_date_to_days", 60)
-    cap = cfg.get("max_properties", 100000)
-    page_size = cfg.get("page_size", 40)          # 검증된 값(40). 키우려면 config에서.
-    workers = max(1, cfg.get("concurrency", 1))   # 기본 순차(검증된 동작). 빠르게=2~4로.
-    max_pages = cfg.get("max_pages", 500)
-    delay = cfg.get("polite_delay_sec", 0.3)
+    cap = cfg.get("max_properties", 100000) or 100000
+    workers = cfg.get("max_workers", 8)
+    timeout = cfg.get("request_timeout_sec", 12)
+    retries = cfg.get("max_retries", 3)
+    max_pages_cap = cfg.get("max_pages", 800)
     now = datetime.now(KST)
     bgn, end = now.strftime("%Y%m%d"), (now + timedelta(days=days)).strftime("%Y%m%d")
 
-    props, seen = [], set()
-    page = 1
-    while page <= max_pages and len(props) < cap:
-        batch = list(range(page, min(page + workers, max_pages + 1)))
-        if workers > 1:
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                rowsets = list(ex.map(lambda pg: fetch_page(pg, page_size, bgn, end), batch))
-        else:
-            rowsets = [fetch_page(pg, page_size, bgn, end) for pg in batch]
+    opener = make_opener()          # 세션 1개(데운)를 모든 스레드가 공유
+    first_rows, total = fetch_page(opener, 1, bgn, end, timeout, retries)
+    if first_rows is None:
+        print("[crawl] 1페이지 실패(재시도 초과) — 수집 중단", file=sys.stderr)
+        return []
+    if total and total > 0:
+        total_pages = min(math.ceil(total / 40), max_pages_cap)
+        print(f"[crawl] 총 {total:,}건 / {total_pages}페이지")
+    else:
+        total_pages = min(60, max_pages_cap)
+        print(f"[crawl] 총건수 확인불가 — 기본 {total_pages}페이지 스캔")
 
-        any_rows = False
-        for pg, rows in zip(batch, rowsets):
-            if not rows:
+    props, seen = [], set()
+
+    def take(rows):
+        for row in rows or []:
+            if len(props) >= cap:
+                return
+            item = row_to_item(row, f)
+            if not item or item["id"] in seen:
                 continue
-            any_rows = True
-            got = 0
-            for row in rows:
-                if len(props) >= cap:
-                    break
-                item = row_to_item(row, f)
-                if not item or item["id"] in seen:
-                    continue
-                seen.add(item["id"])
-                props.append(item)
-                got += 1
-            print(f"[crawl] p{pg}: {len(rows)}건 중 {got}건 채택 (누적 {len(props)})")
-        if not any_rows:            # 배치 전체가 빈 결과 → 끝
+            seen.add(item["id"])
+            props.append(item)
+
+    take(first_rows)
+    pages = list(range(2, total_pages + 1))
+    batch = 20
+    for i in range(0, len(pages), batch):
+        chunk = pages[i:i + batch]
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(lambda p: fetch_page(opener, p, bgn, end, timeout, retries)[0], chunk))
+        for rows in results:
+            take(rows)
+        print(f"[crawl] ~{chunk[-1]}/{total_pages}p (누적 {len(props)})")
+        if len(props) >= cap:
             break
-        page += workers
-        time.sleep(delay)
+    print(f"[crawl] 수집 {len(props)}건")
     return props
 
 
@@ -319,6 +323,7 @@ def main():
         print(f"[sample] {len(props)}건 → properties.json")
         return
 
+    socket.setdefaulttimeout(cfg.get("socket_timeout_sec", 15))  # 행(hang) 방지
     try:
         props = crawl(cfg)
     except Exception as e:  # noqa: BLE001

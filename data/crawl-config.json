@@ -14,9 +14,10 @@
   "sale_date_from_days": 0,
   "sale_date_to_days": 21,
   "max_pages": 500,
-  "page_size": 40,
   "fetch_rights": true,
-  "polite_delay_sec": 0.3,
   "max_properties": 100000,
-  "concurrency": 1
+  "max_workers": 8,
+  "request_timeout_sec": 12,
+  "max_retries": 3,
+  "socket_timeout_sec": 15
 }
