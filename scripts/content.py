@@ -65,8 +65,10 @@ def verdict(r):
 
 # ----------------------- HTML 조각 -----------------------
 STYLE = """
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-.auc{max-width:820px;margin:0 auto;font-family:'Pretendard',system-ui,'Malgun Gothic',sans-serif;line-height:1.75;color:#1f2430}
+.auc{max-width:820px;margin:0 auto;font-family:'Pretendard',system-ui,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;line-height:1.75;color:#1f2430}
 .auc h2{font-size:1.5em;margin:1.6em 0 .5em;border-left:5px solid #E0A82E;padding-left:.5em}
 .auc .lead{font-size:1.05em;color:#3a4252;background:#fbf7ec;border:1px solid #f0e4c4;border-radius:12px;padding:16px 18px}
 .auc table{width:100%;border-collapse:collapse;margin:.8em 0;font-size:.97em}
@@ -274,8 +276,11 @@ def main():
             pid = "past_" + item["id"]
             score = None
         fname = f"{rank:02d}-{slugify(item.get('apt_name') or item.get('id'))}.html"
+        doc = (f'<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'
+               f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+               f'<title>{title}</title>\n</head>\n<body>\n{html}\n</body>\n</html>\n')
         with open(os.path.join(outdir, fname), "w", encoding="utf-8") as f:
-            f.write(html)
+            f.write(doc)
         published[pid] = {"date": day, "title": title, "kind": kind}
         index.append({"rank": rank, "kind": kind, "id": pid, "title": title,
                       "file": fname, "score": score})
