@@ -120,12 +120,23 @@ def extract_floor(text):
 
 
 def extract_apt_name(addr, bld):
-    """주소·건물내역에서 단지명 추정(국토부 매칭용). 못 찾으면 빈 문자열."""
-    for src in (bld or "", addr or ""):
-        m = re.search(r'([가-힣A-Za-z0-9]+(?:아파트|자이|푸르지오|힐스테이트|더샵|아이파크|캐슬|채|타운|팰리스|파크))', src)
+    """단지/건물명 추정. ①도로명주소 '(동명, 건물명)'의 건물명 → ②접미사 패턴 → ③동명 폴백."""
+    addr = addr or ""
+    for grp in re.findall(r'\(([^)]+)\)', addr):      # ① "(매탄동, 매탄위브하늘채)" → 콤마 뒤 건물명
+        if "," in grp:
+            nm = grp.split(",")[-1].strip()
+            if nm and not re.fullmatch(r'[\d\-.,\s]+', nm) and not nm.endswith(("동", "호", "층", "가")):
+                return nm
+    suffix = (r'아파트|자이|푸르지오|힐스테이트|래미안|편한세상|롯데캐슬|캐슬|더샵|아이파크|데시앙|'
+              r'센트럴|하늘채|리버뷰|리버|팰리스|타운|빌리지|주공|하이츠|리슈빌|스카이시티|스카이|'
+              r'시티|프라자|하이빌|하임|파크|빌라트|채|단지|힐|뷰')
+    pat = re.compile(r'([가-힣A-Za-z0-9]{2,}(?:%s)\d*(?:단지)?)' % suffix)
+    for src in (bld or "", addr):                     # ② 건물명 접미사
+        m = pat.search(src)
         if m:
             return m.group(1)
-    return ""
+    m = re.search(r'([가-힣]+(?:동|읍|면))', addr)      # ③ 동/읍/면 폴백
+    return m.group(1) if m else ""
 
 
 SPECIAL_RIGHTS_KW = ["유치권", "법정지상권", "분묘기지권", "지분", "선순위전세권", "대지권미등기", "가처분", "예고등기"]

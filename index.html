@@ -3,324 +3,193 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>경매 분석 리포트 · 적정 입찰가와 수익률</title>
+<title>경매 분석 리포트</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet" />
 <style>
   :root{--ink:#0B0E14;--panel:#12161F;--panel2:#161B26;--line:#212836;--line2:#2b3444;
-    --tx:#E6EAF2;--mut:#8B94A7;--dim:#5B6473;--gold:#E0A82E;--jade:#3DD68C;--rust:#E5484D;--blue:#5B9DFF;--radius:14px}
+    --tx:#E6EAF2;--mut:#8B94A7;--dim:#5B6473;--gold:#E0A82E;--jade:#3DD68C;--rust:#E5484D;--blue:#5B9DFF;--r:14px}
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--ink);color:var(--tx);font-family:"Pretendard Variable",Pretendard,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   body{padding-top:env(safe-area-inset-top,0)}
-  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
-  header{position:sticky;top:0;z-index:20;background:rgba(11,14,20,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-  .hd{display:flex;align-items:center;gap:14px;height:56px}
-  .logo{font-weight:800;letter-spacing:-.02em;font-size:17px}.logo b{color:var(--gold)}
-  .hd .meta{margin-left:auto;color:var(--mut);font-size:12.5px}
-  .src{padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--dim)}
-  .intro{padding:28px 0 6px}
-  .intro h1{font-size:26px;letter-spacing:-.03em;margin:0 0 6px;font-weight:800}
-  .intro p{color:var(--mut);margin:0;font-size:14px;max-width:70ch}
-  .brief{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0 4px}
-  .kt{background:linear-gradient(180deg,#141A25,#10141D);border:1px solid var(--line);border-radius:12px;padding:14px 15px}
-  .kt .l{font-size:11.5px;color:var(--mut);margin-bottom:5px}
-  .kt .v{font-size:22px;font-weight:800;letter-spacing:-.02em}
-  .pos{color:var(--jade)}.neg{color:var(--rust)}.cool{color:var(--blue)}.goldc{color:var(--gold)}
-  section{padding:26px 0}
-  .sh{display:flex;align-items:baseline;gap:12px;margin:0 0 14px}
-  h2{font-size:19px;letter-spacing:-.02em;margin:0;font-weight:750}
-  .sh .sub{color:var(--mut);font-size:13px}
-  .sh .ctrl{margin-left:auto;display:flex;align-items:center;gap:8px}
-  select{background:var(--panel);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
-  .tbl-wrap{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .num{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+  .pos{color:var(--jade)}.neg{color:var(--rust)}.cool{color:var(--blue)}.gold{color:var(--gold)}
+  header{position:sticky;top:0;z-index:20;background:rgba(11,14,20,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .hd{display:flex;align-items:center;gap:10px;height:52px}
+  .logo{font-weight:800;font-size:16px;letter-spacing:-.02em}.logo b{color:var(--gold)}
+  .hd .meta{margin-left:auto;color:var(--dim);font-size:11.5px;text-align:right}
+  h1{font-size:20px;margin:20px 0 12px;letter-spacing:-.02em}
+  .brief{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .kt{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .kt .k{font-size:10.5px;color:var(--mut)}.kt .v{font-size:17px;font-weight:800;margin-top:3px;letter-spacing:-.02em}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:var(--panel);border:1px solid var(--line2);color:var(--mut);border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+  .chip.on{background:var(--gold);color:#1a1206;border-color:var(--gold);font-weight:700}
+  select{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;cursor:pointer}
+  .card:hover{border-color:var(--line2)}
+  .ctop{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .sb{min-width:38px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  .sb-hi{background:rgba(61,214,140,.16);color:var(--jade)}.sb-mid{background:rgba(224,168,46,.14);color:var(--gold)}.sb-lo{background:rgba(139,148,167,.12);color:var(--mut)}
+  .nm{font-weight:750;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vd{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .v-go{background:rgba(61,214,140,.14);color:var(--jade)}.v-hold{background:rgba(224,168,46,.13);color:var(--gold)}.v-skip{background:rgba(229,72,77,.12);color:var(--rust)}
+  .tags{font-size:11px;color:var(--dim);margin-bottom:10px}
+  .tags b{color:var(--mut);font-weight:600}
+  .mini{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 12px}
+  .mini .l{font-size:10.5px;color:var(--mut)}.mini .v{font-size:14.5px;font-weight:700;margin-top:1px}
+  .rk{font-size:11px;margin-top:9px}.rk b{font-weight:700}
+  .rk-high{color:var(--rust)}.rk-mid{color:var(--gold)}.rk-low{color:var(--dim)}
+  .detail{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:none}
+  .card.open .detail{display:block}
+  .strat{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px}
+  .st{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 9px}
+  .st.rec{border-color:rgba(224,168,46,.45)}
+  .st .l{font-size:10px;color:var(--mut)}.st .v{font-size:13px;font-weight:750;margin-top:2px}
+  table.cost{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+  table.cost td{padding:3px 0;color:var(--mut)}table.cost td:last-child{text-align:right;color:var(--tx)}
+  canvas{display:block;width:100%;margin-top:8px}
+  h2{font-size:17px;margin:26px 0 4px;letter-spacing:-.02em}
+  .sub{color:var(--mut);font-size:12.5px;margin:0 0 12px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
   .scroll{overflow-x:auto}
-  table.rep{width:100%;border-collapse:collapse;font-size:13.5px;min-width:860px}
-  table.rep thead th{background:var(--panel2);color:var(--mut);font-weight:600;font-size:11.5px;text-align:right;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
-  table.rep thead th:first-child{text-align:left}
-  table.rep tbody td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-  table.rep tbody td:first-child{text-align:left}
-  table.rep tbody tr.row{cursor:pointer}
-  table.rep tbody tr.row:hover{background:#141a24}
-  .pname{font-weight:700;font-size:14px}
-  .psub{font-size:11.5px;color:var(--dim);margin-top:2px}
-  .chip{display:inline-block;font-size:10.5px;color:var(--mut);border:1px solid var(--line2);border-radius:999px;padding:1px 7px;margin-right:4px}
-  .bidcell{color:var(--gold);font-weight:750}
-  .verdict{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px}
-  .v-go{background:rgba(61,214,140,.14);color:var(--jade)}
-  .v-hold{background:rgba(224,168,46,.13);color:var(--gold)}
-  .v-skip{background:rgba(229,72,77,.12);color:var(--rust)}
-  .rk{font-size:11.5px;font-weight:700}
-  .rk-low{color:var(--jade)}.rk-mid{color:var(--gold)}.rk-high{color:var(--rust)}
-  .caret{color:var(--dim);font-size:11px;margin-left:6px}
-  tr.detail td{background:#0e1219;padding:0;border-bottom:1px solid var(--line)}
-  .dt{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:16px 18px}
-  .dt .costs table{width:100%;border-collapse:collapse;font-size:12.5px}
-  .dt .costs td{padding:3px 0;color:var(--mut);text-align:left}
-  .dt .costs td:last-child{text-align:right;color:var(--tx)}
-  .dt .cbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-  .dt .ct{font-size:11.5px;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between}
-  canvas{display:block;width:100%}
-  .flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-  .flag{font-size:10.5px;color:var(--rust);border:1px solid rgba(229,72,77,.3);border-radius:6px;padding:1px 6px}
-  .ins{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
-  .box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
-  .box h3{margin:0 0 12px;font-size:14px;font-weight:700}
-  .bar{display:grid;grid-template-columns:150px 1fr 46px;align-items:center;gap:10px;margin:7px 0;font-size:12px}
+  table.rep{width:100%;border-collapse:collapse;font-size:13px;min-width:440px}
+  table.rep th{color:var(--mut);font-weight:600;font-size:11px;text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.rep th:first-child,table.rep td:first-child{text-align:left}
+  table.rep td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  .bar{display:grid;grid-template-columns:130px 1fr 42px;align-items:center;gap:8px;margin:6px 0;font-size:12px}
   .bar>div:first-child{color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bar .track2{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden}
-  .bar .fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--gold))}
-  details.calc{margin-top:8px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:hidden}
-  details.calc>summary{cursor:pointer;padding:14px 18px;font-weight:700;font-size:14px;list-style:none}
-  details.calc>summary::-webkit-details-marker{display:none}
-  details.calc>summary::before{content:"▸ ";color:var(--gold)}
-  details.calc[open]>summary::before{content:"▾ "}
-  .calcbody{padding:0 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .calcbody label{display:block;font-size:11.5px;color:var(--mut);margin:8px 0 4px}
-  .calcbody input,.calcbody select{width:100%;background:var(--ink);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
-  .calcres{font-size:13px;color:var(--mut);line-height:2}
-  .calcres b{color:var(--tx)}
-
-  .scorebadge{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:34px;border-radius:9px;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
-  .sb-hi{background:rgba(61,214,140,.16);color:var(--jade);border:1px solid rgba(61,214,140,.4)}
-  .sb-mid{background:rgba(224,168,46,.14);color:var(--gold);border:1px solid rgba(224,168,46,.4)}
-  .sb-lo{background:rgba(139,148,167,.12);color:var(--mut);border:1px solid var(--line2)}
-  .liqcell{font-weight:750}
-  .lg-A{color:var(--jade)}.lg-B{color:var(--blue)}.lg-C{color:var(--gold)}.lg-D{color:var(--rust)}
-  .strat{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
-  .stbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-  .stbox.rec{border-color:rgba(224,168,46,.5);background:linear-gradient(180deg,#1a1710,#12141d)}
-  .stl{font-size:11px;color:var(--mut)}
-  .stv{font-size:17px;font-weight:800;margin-top:3px}
-  .sthint{font-size:10.5px;color:var(--dim);margin-top:2px}
-  .brk{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:6px}
-  .bk .bkl{font-size:11px;color:var(--mut);margin-bottom:4px}
-  .bktrack{height:7px;background:var(--panel2);border-radius:999px;overflow:hidden}
-  .bktrack>div{height:100%;background:linear-gradient(90deg,var(--blue),var(--jade))}
-  .bkv{font-size:11px;color:var(--tx);margin-top:3px;text-align:right}
-  .liqsig{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
-  .liqsig .chip{color:var(--mut)}
-  @media (max-width:900px){.strat{grid-template-columns:1fr}.brk{grid-template-columns:repeat(2,1fr)}}
-  footer{color:var(--dim);font-size:12px;padding:26px 0 50px;border-top:1px solid var(--line);margin-top:16px}
-  @media (max-width:900px){.brief{grid-template-columns:repeat(2,1fr)}.ins{grid-template-columns:1fr}.dt,.calcbody{grid-template-columns:1fr}}
+  .track{height:7px;background:var(--panel2);border-radius:999px;overflow:hidden}
+  .fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--gold))}
+  footer{color:var(--dim);font-size:11px;padding:22px 0 46px;border-top:1px solid var(--line);margin-top:24px}
+  @media(max-width:560px){.brief{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}h1{font-size:18px}}
 </style>
 </head>
 <body>
 <header><div class="wrap hd">
-  <div class="logo">경매<b>·</b>분석 리포트</div>
-  <div class="meta"><span class="src" id="srcTag">시세 —</span> <span id="genAt"></span></div>
+  <div class="logo">경매<b>·</b>분석</div>
+  <div class="meta" id="meta"></div>
 </div></header>
 
 <main class="wrap">
-  <div class="intro">
-    <h1>오늘의 경매 물건 분석</h1>
-    <p>매일 법원경매정보에서 진행 중인 물건을 전부 수집해, 물건마다 <b style="color:var(--tx)">얼마를 써야 하는지(적정 입찰가)</b>·그 금액의 <b style="color:var(--tx)">낙찰 성공률</b>·<b style="color:var(--tx)">예상 순이익</b>·<b style="color:var(--tx)">권리 위험도</b>를 정리합니다. 아래 표에서 행을 누르면 비용 내역과 입찰가별 곡선이 펼쳐집니다.</p>
-  </div>
-
+  <h1>오늘의 경매 물건</h1>
   <div class="brief" id="brief"></div>
 
-  <section>
-    <div class="sh"><h2>물건별 분석</h2><span class="sub" id="cntSub"></span>
-      <div class="ctrl"><span style="font-size:12px;color:var(--mut)">정렬</span>
-        <select id="sortSel">
-          <option value="score">종합 점수 (환금성 우선)</option>
-          <option value="liq">환금성</option>
-          <option value="roi">예상 ROI</option>
-          <option value="profit">예상 순이익</option>
-          <option value="win">낙찰 성공률</option>
-          <option value="risk">권리 위험도</option>
-        </select></div>
-    </div>
-    <div class="tbl-wrap"><div class="scroll"><table class="rep" id="repTbl">
-      <thead><tr>
-        <th>점수</th><th>물건</th><th>적정 입찰가</th><th>성공률</th>
-        <th>예상 순이익 · ROI</th><th>환금성</th><th>권리</th><th>판정</th>
-      </tr></thead>
-      <tbody id="repBody"></tbody>
-    </table></div></div>
-  </section>
+  <div class="controls">
+    <div class="chips" id="chips"></div>
+    <select id="sort">
+      <option value="score">종합점수순</option>
+      <option value="roi">수익률순</option>
+      <option value="profit">순이익순</option>
+      <option value="win">성공률순</option>
+    </select>
+  </div>
+  <div class="grid" id="grid"></div>
 
-  <section>
-    <div class="sh"><h2>과거 경매 실적</h2><span class="sub" id="pastSub">실제 낙찰가 → 최종 매도가 기준 수익률</span></div>
-    <div class="brief" id="pastKpi" style="grid-template-columns:repeat(4,1fr);margin-top:0"></div>
-    <div class="tbl-wrap" style="margin-top:14px"><div class="scroll"><table class="rep">
-      <thead><tr><th>사건</th><th>지역·유형</th><th>낙찰가(입찰가)</th><th>최종 매도가</th><th>순이익</th><th>수익률</th><th>매도시점</th></tr></thead>
-      <tbody id="pastBody"></tbody>
-    </table></div></div>
-    <div class="ins">
-      <div class="box"><h3>지역·유형별 평균 낙찰가율</h3><div id="regionBars"></div></div>
-      <div class="box"><h3>낙찰가율 ↔ 수익률 (과거 사례)</h3><canvas id="scatter" height="220"></canvas></div>
-    </div>
-  </section>
+  <h2>과거 경매 실적</h2>
+  <p class="sub" id="pastSub">낙찰가 → 매도가 기준 수익률</p>
+  <div class="brief" id="pastKpi" style="grid-template-columns:repeat(3,1fr)"></div>
+  <div class="box scroll" style="margin-top:12px"><table class="rep">
+    <thead><tr><th>지역·유형</th><th>낙찰가</th><th>매도가</th><th>수익률</th></tr></thead>
+    <tbody id="pastBody"></tbody></table></div>
+  <div class="box" style="margin-top:12px"><div style="font-size:12.5px;color:var(--mut);margin-bottom:8px">지역·유형별 평균 낙찰가율</div><div id="bars"></div></div>
 
-  <section>
-    <details class="calc"><summary>특정 조건 직접 계산해보기</summary>
-      <div class="calcbody">
-        <div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div><label>지역</label><select id="c_region"></select></div>
-            <div><label>유형</label><select id="c_type"><option>아파트</option><option>오피스텔</option><option>빌라</option><option>기타</option></select></div>
-            <div><label>감정가(원)</label><input id="c_appr" class="num" type="number" value="720000000"></div>
-            <div><label>최저입찰가(원)</label><input id="c_min" class="num" type="number" value="504000000"></div>
-            <div><label>유찰</label><input id="c_fail" class="num" type="number" value="1"></div>
-            <div><label>전용(㎡)</label><input id="c_area" class="num" type="number" value="84.9"></div>
-            <div><label>시세(원)</label><input id="c_mkt" class="num" type="number" value="760000000"></div>
-            <div><label>인수보증금(원)</label><input id="c_dep" class="num" type="number" value="0"></div>
-            <div><label>보유개월</label><input id="c_hold" class="num" type="number" value="12"></div>
-            <div><label>명도</label><select id="c_evic"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select></div>
-          </div>
-        </div>
-        <div><div class="calcres" id="calcRes"></div><canvas id="calcCurve" height="150" style="margin-top:8px"></canvas></div>
-      </div>
-    </details>
-  </section>
-
-  <footer>
-    시세는 국토교통부 실거래가 OpenAPI로 조회하고 층·향을 보정합니다. 권리·세율·부대비용은 근사 추정이며 실제 세무·법률 판단을 대체하지 않습니다. 명도·권리·유동성 위험이 있으며 이 도구는 투자 자문이 아닙니다.
-  </footer>
+  <footer>시세는 국토부 실거래가 기준 추정, 세율·부대비용은 근사값입니다. 투자 자문이 아니며 입찰 전 매각물건명세서·현황조사서를 직접 확인하세요.</footer>
 </main>
 
 <script>
-const FB_A={target_profit_rate:0.15,eviction_cost:{easy:1000000,normal:3000000,hard:8000000},repair_cost_per_m2:200000,brokerage_rate:0.005,holding_months:12,holding_cost_annual_rate:0.05,monthly_mgmt_fee:150000,extra_fixed:1500000,tax:{acq_edu_multiplier:1.10,acq_nongtuk_over85:0.002,acq_multi_home_surcharge:0.08,multi_home:false,cgt_basic_deduction:2500000,cgt_local_surtax:0.10,cgt_ltd_rate_per_year:0.02,cgt_ltd_max:0.30,cgt_single_home:false,cgt_adjusted_surcharge:0.0},progressive_brackets:[[14000000,0.06,0],[50000000,0.15,1260000],[88000000,0.24,5760000],[150000000,0.35,15440000],[300000000,0.38,19940000],[500000000,0.40,25940000],[1000000000,0.42,35940000],[1e15,0.45,65940000]],competition:{ref_bidders:5,k_ratio_per_bidder:1.4,discount_boost:0.9,fail_damp:0.14,history_weight:0.4},resale_cv:0.06,win_target:0.60,illiquid_margin_add:0.10,min_roi_floor:0.08,liquidity:{type:{"아파트":1.0,"오피스텔":0.6,"빌라":0.4,"기타":0.3},trade_count_full:10,size_ideal_min:40,size_ideal_max:95,price_high:1500000000},score_weights:{liquidity:0.40,profit:0.25,win:0.10,rights:0.15,margin:0.10},liquidity_gate:0.70};
-const FB_B={sale_ratio:{"경기 수원시":{"아파트":{mean:89,std:9,bidders:6}},"서울 노원구":{"아파트":{mean:96,std:8,bidders:8}},"인천 연수구":{"오피스텔":{mean:78,std:11,bidders:4}}},default:{"아파트":{mean:88,std:10,bidders:6},"오피스텔":{mean:78,std:12,bidders:4},"빌라":{mean:75,std:13,bidders:3},"기타":{mean:70,std:15,bidders:3}},fail_round_penalty:6.0};
-let A=FB_A,B=FB_B,ANALYSIS=null,PROPS=[];
-
-/* 포맷 */
-function won(n){if(n==null||isNaN(n))return"—";const neg=n<0;n=Math.abs(Math.round(n));const eok=Math.floor(n/1e8),man=Math.round((n%1e8)/1e4);let s=eok>0?`${eok}억 ${man?man.toLocaleString()+"만":""}`.trim():`${man.toLocaleString()}만`;return(neg?"−":"")+s;}
-const pct=x=>(x*100).toFixed(x*100<10?1:0)+"%";
+let AN=null, FILTER="전체";
+const won=n=>{if(n==null||isNaN(n))return"—";const g=n<0;n=Math.abs(Math.round(n));const e=Math.floor(n/1e8),m=Math.round((n%1e8)/1e4);return(g?"−":"")+(e?`${e}억 ${m?m.toLocaleString()+"만":""}`.trim():`${m.toLocaleString()}만`)};
+const pct=x=>x==null?"—":(x*100).toFixed(x*100<10?1:0)+"%";
 const sc=n=>n>=0?"pos":"neg";
-const rkCls=l=>l==="높음"?"rk-high":l==="보통"?"rk-mid":"rk-low";
+const el=id=>document.getElementById(id);
+function dong(a){if(!a)return"";const m=a.match(/([가-힣]+(?:동|읍|면))/);return m?m[1]:""}
+function pName(r){return (r.apt_name&&r.apt_name.trim())||dong(r.address)||r.type||"물건"}
+function verdict(r){const hi=(r.rights_risk||{}).level==="높음";
+  if(r.net_profit>0&&r.success_prob>=.35&&r.roi>=.10&&!hi)return["v-go","입찰 적합"];
+  if(r.net_profit>0&&r.roi>=.05&&!hi)return["v-hold","조건부"];return["v-skip","보류"]}
 
-/* 계산(직접 계산기용) */
-function erf(x){const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+0.3275911*x);const y=1-((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
-const cdf=z=>0.5*(1+erf(z/Math.SQRT2));
-function acqTax(price,area,a){const t=a.tax,eok=price/1e8;let base;if(price<=6e8)base=0.01;else if(price<=9e8)base=(eok*2/3-3)/100;else base=0.03;let tax=price*base*t.acq_edu_multiplier;if(area>85)tax+=price*t.acq_nongtuk_over85;if(t.multi_home)tax+=price*t.acq_multi_home_surcharge;return tax;}
-function progressive(base,br){for(const[c,r,d]of br)if(base<=c)return base*r-d;const l=br.at(-1);return base*l[1]-l[2];}
-function cgt(gain,m,a){const t=a.tax;if(gain<=0)return 0;let tb=gain-t.cgt_basic_deduction;if(tb<=0)return 0;let c;if(m<12)c=tb*0.70;else if(m<24)c=tb*0.60;else{const y=Math.floor(m/12);let ltd=0;if(y>=3)ltd=t.cgt_single_home?Math.min(0.80,y*0.08):Math.min(t.cgt_ltd_max,y*t.cgt_ltd_rate_per_year);const af=tb*(1-ltd);c=progressive(af,a.progressive_brackets)+af*(t.cgt_adjusted_surcharge||0);}c+=c*t.cgt_local_surtax;return Math.max(c,0);}
-function netProfit(bid,sale,p,a){const m=p.holding_months??a.holding_months,area=p.exclusive_area||0;const acq=acqTax(bid,area,a),evic=a.eviction_cost[p.eviction||"normal"]??a.eviction_cost.normal,repair=area*a.repair_cost_per_m2,holding=bid*a.holding_cost_annual_rate*m/12+a.monthly_mgmt_fee*m,broker=sale*a.brokerage_rate,fixed=a.extra_fixed,assumed=(p.assumed_deposit||0)+(p.lien_amount||0);const pre=sale-bid-assumed-(acq+evic+repair+holding+broker+fixed);const tax=cgt(pre,m,a);const items={"인수권리":assumed,"취득세":acq,"명도비":evic,"수리비":repair,"보유비용":holding,"매도중개":broker,"등기·법무 등":fixed,"양도세":tax};const costs=Object.values(items).reduce((x,y)=>x+y,0);const profit=sale-bid-costs;const inv=bid+assumed+acq+evic+repair;return{profit,roi:inv?profit/inv:0,items};}
-function fairBid(sale,p,a){let lo=0,hi=sale;for(let i=0;i<60;i++){const m=(lo+hi)/2;if(netProfit(m,sale,p,a).roi>=a.target_profit_rate)lo=m;else hi=m;}return Math.round(lo);}
-function ratioBidders(p,sale,a){let b=(B.sale_ratio[p.region]||{})[p.type]||B.default[p.type]||B.default["기타"];let mean=b.mean-(B.fail_round_penalty||6)*(p.fail_rounds||0);const c=a.competition;const at=1+c.discount_boost*Math.max(-0.3,(sale/p.appraisal)-0.95);let lam=Math.max(1,(b.bidders||5)*at*(1-c.fail_damp*(p.fail_rounds||0)));return{meanAdj:mean+c.k_ratio_per_bidder*(lam-c.ref_bidders),std:Math.max(b.std,3),lam:+lam.toFixed(1)};}
-const successProb=(bid,appr,m,s)=>cdf((100*bid/appr-m)/s);
-function liquidityScoreJS(p,a){const L=a.liquidity;const tliq=L.type[p.type]||0.3;const b=(B.sale_ratio[p.region]||{})[p.type]||B.default[p.type]||B.default["기타"];const demand=Math.min(1,(b.bidders||5)/10);const tf=demand;const area=p.exclusive_area||0;const size=(area>=L.size_ideal_min&&area<=L.size_ideal_max)?1:0.6;const pb=p.appraisal>L.price_high?0.6:1;const raw=0.30*tliq+0.25*demand+0.25*tf+0.10*size+0.10*pb;const sc=Math.round(raw*100);const grade=sc>=75?"A":sc>=55?"B":sc>=35?"C":"D";return{score:sc,grade};}
-function bidStrategiesJS(sale,p,a,appr,m,std,liq){const lo=p.min_bid,hi=appr*1.05,mf=a.min_roi_floor||0.08;let bb=null,be=-1e18,ab=p.min_bid,ae=-1e18;for(let i=0;i<=120;i++){const b=lo+(hi-lo)*i/120;const np=netProfit(b,sale,p,a);const ev=successProb(b,appr,m,std)*np.profit;if(np.profit>0&&ev>ae){ae=ev;ab=b;}if(np.roi>=mf&&ev>be){be=ev;bb=b;}}const ev_opt=Math.round(bb!=null?bb:ab);const floor=a.target_profit_rate+(1-liq/100)*(a.illiquid_margin_add||0.10);let l2=0,h2=sale;for(let i=0;i<60;i++){const x=(l2+h2)/2;if(netProfit(x,sale,p,a).roi>=floor)l2=x;else h2=x;}const safe=Math.round(l2);const wt=a.win_target||0.6;let l3=p.min_bid,h3=appr*1.2;for(let i=0;i<60;i++){const x=(l3+h3)/2;if(successProb(x,appr,m,std)>=wt)h3=x;else l3=x;}return{ev_optimal:ev_opt,safe_max:safe,win_target:Math.round(h3),roi_floor:floor};}
-function compositeJS(p,rec,sale,a,liqObj){const np=netProfit(rec,sale,p,a);const disc=sale?1-rec/sale:0;const w=a.score_weights;const liq=liqObj.score;const profit_s=Math.max(0,Math.min(1,np.roi/0.30))*100,rights_s=100,margin_s=Math.max(0,Math.min(1,disc/0.20))*100;const{meanAdj,std}=ratioBidders(p,sale,a);const win=successProb(rec,p.appraisal,meanAdj,std);const win_s=win*100;let base=w.liquidity*liq+w.profit*profit_s+w.win*win_s+w.rights*rights_s+w.margin*margin_s;const gate=a.liquidity_gate+(1-a.liquidity_gate)*(liq/100);let tot=base*gate;if(np.profit<=0)tot=Math.min(tot,20);return Math.round(tot);}
+function cardHTML(r,i){const[vc,vt]=verdict(r);const lq=r.liquidity||{},rk=r.rights_risk||{level:"낮음"},st=r.bid_strategies||{};
+  const sb=r.score>=55?"sb-hi":r.score>=40?"sb-mid":"sb-lo";
+  const rkc=rk.level==="높음"?"rk-high":rk.level==="보통"?"rk-mid":"rk-low";
+  const flags=(rk.flags||[]).length?" · "+rk.flags.join(", "):"";
+  return `<div class="card" data-i="${i}" data-type="${r.type}">
+    <div class="ctop"><span class="sb ${sb}">${r.score}</span>
+      <span class="nm">${pName(r)}</span><span class="vd ${vc}">${vt}</span></div>
+    <div class="tags"><b>${r.region}</b> · ${r.type} · 유찰 ${r.fail_rounds}회 · 환금성 ${lq.grade||"—"}</div>
+    <div class="mini">
+      <div><div class="l">적정 입찰가</div><div class="v gold">${won(r.recommended_bid)}</div></div>
+      <div><div class="l">낙찰 성공률</div><div class="v cool">${pct(r.success_prob)} <span style="color:var(--dim);font-size:11px">~${r.expected_bidders}명</span></div></div>
+      <div><div class="l">예상 순이익</div><div class="v ${sc(r.net_profit)}">${won(r.net_profit)}</div></div>
+      <div><div class="l">ROI</div><div class="v ${sc(r.roi)}">${(r.roi*100).toFixed(1)}%</div></div>
+    </div>
+    <div class="rk ${rkc}"><b>권리 ${rk.level}</b>${flags}</div>
+    <div class="detail">
+      <div class="strat">
+        <div class="st"><div class="l">보수</div><div class="v">${won(st.safe_max)}</div></div>
+        <div class="st rec"><div class="l">권장</div><div class="v gold">${won(r.recommended_bid)}</div></div>
+        <div class="st"><div class="l">공격</div><div class="v">${won(st.win_target)}</div></div>
+      </div>
+      <table class="cost">
+        <tr><td>예상 매도가(시세)</td><td>${won(r.market_price)}</td></tr>
+        <tr><td>− 낙찰가(권장)</td><td>${won(r.recommended_bid)}</td></tr>
+        ${Object.entries(r.cost_items||{}).map(([k,v])=>v?`<tr><td>− ${k}</td><td>${won(v)}</td></tr>`:"").join("")}
+        <tr style="border-top:1px solid var(--line)"><td style="color:var(--tx);font-weight:700">= 순이익</td><td class="${sc(r.net_profit)}" style="font-weight:700">${won(r.net_profit)}</td></tr>
+      </table>
+      <canvas class="cv" height="120"></canvas>
+    </div>
+  </div>`}
 
-/* 브리핑 */
-function renderBrief(){const P=ANALYSIS.properties;const fit=P.filter(r=>verdict(r)[1]==="입찰 적합").length;
-  const roi=P.length?P.reduce((s,r)=>s+r.roi,0)/P.length:0;const win=P.length?P.reduce((s,r)=>s+r.success_prob,0)/P.length:0;
-  const past=ANALYSIS.backtest.summary;
-  el("brief").innerHTML=[["오늘 분석 물건",P.length+"건","goldc"],["입찰 적합",fit+"건","pos"],
-    ["평균 예상 ROI",(roi*100).toFixed(1)+"%",sc(roi)],["평균 성공률",pct(win),"cool"],
-    ["과거 평균 수익률",(past.avg_roi*100).toFixed(1)+"%",sc(past.avg_roi)]]
-    .map(([l,v,c])=>`<div class="kt"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`).join("");
-  el("cntSub").textContent=`진행 중 ${P.length}건 · 판정 기준 ROI≥10%·성공률≥35%·권리 高 제외`;}
-
-/* 판정 */
-function verdict(r){const hi=r.rights_risk&&r.rights_risk.level==="높음";
-  if(r.net_profit>0&&r.success_prob>=0.35&&r.roi>=0.10&&!hi)return["v-go","입찰 적합"];
-  if(r.net_profit>0&&r.roi>=0.05&&!hi)return["v-hold","조건부"];return["v-skip","보류"];}
-
-/* 물건 표 */
-const SORTERS={score:(a,b)=>b.score-a.score,liq:(a,b)=>(b.liquidity?.score||0)-(a.liquidity?.score||0),ev:(a,b)=>b.expected_value-a.expected_value,roi:(a,b)=>b.roi-a.roi,
-  profit:(a,b)=>b.net_profit-a.net_profit,win:(a,b)=>b.success_prob-a.success_prob,
-  risk:(a,b)=>(b.rights_risk?.score||0)-(a.rights_risk?.score||0)};
-function renderTable(){const key=el("sortSel").value;const rows=[...ANALYSIS.properties].sort(SORTERS[key]);
-  el("repBody").innerHTML=rows.map((r,i)=>{const[vc,vt]=verdict(r);const rk=r.rights_risk||{level:"낮음"};
-    const lq=r.liquidity||{score:0,grade:"D"};const sbc=r.score>=55?"sb-hi":r.score>=40?"sb-mid":"sb-lo";
-    return `<tr class="row" data-i="${i}">
-      <td><span class="scorebadge ${sbc}">${r.score}</span></td>
-      <td><div class="pname">${r.apt_name||r.type}<span class="caret">▸</span></div>
-        <div class="psub">${r.id} · ${r.region} · ${r.type} · 유찰 ${r.fail_rounds}회 · 감정 ${won(r.appraisal)} · 최저 ${won(r.min_bid)}</div></td>
-      <td class="num bidcell">${won(r.recommended_bid)}</td>
-      <td class="num cool">${pct(r.success_prob)}<span style="color:var(--dim);font-size:11px"> ~${r.expected_bidders}명</span></td>
-      <td class="num"><span class="${sc(r.net_profit)}" style="font-weight:700">${won(r.net_profit)}</span><span style="color:var(--dim);font-size:11px"> / ${(r.roi*100).toFixed(1)}%</span></td>
-      <td class="liqcell lg-${lq.grade}">${lq.grade}<span style="color:var(--dim);font-size:11px"> ${lq.score}</span></td>
-      <td><span class="rk ${rkCls(rk.level)}">${rk.level}</span></td>
-      <td><span class="verdict ${vc}">${vt}</span></td></tr>`;}).join("");
-  el("repBody").querySelectorAll("tr.row").forEach(tr=>tr.onclick=()=>toggleDetail(tr,rows[+tr.dataset.i]));}
-
-function toggleDetail(tr,r){const nx=tr.nextElementSibling;
-  if(nx&&nx.classList.contains("detail")){nx.remove();tr.querySelector(".caret").textContent="▸";return;}
-  document.querySelectorAll("tr.detail").forEach(d=>{d.previousElementSibling?.querySelector(".caret")&&(d.previousElementSibling.querySelector(".caret").textContent="▸");d.remove();});
-  tr.querySelector(".caret").textContent="▾";
-  const det=document.createElement("tr");det.className="detail";
-  const disc=r.discount_vs_market!=null?`시세 대비 ${(r.discount_vs_market*100).toFixed(0)}% 낮게`:"";
-  const st=r.bid_strategies||{},bd=r.score_breakdown||{},lq=r.liquidity||{signals:[]};
-  const stratHTML=`<div class="strat">
-    <div class="stbox"><div class="stl">보수 · 안전마진</div><div class="stv">${won(st.safe_max)}<span style="font-size:11px;color:var(--dim)">원</span></div><div class="sthint">목표수익률 ${((st.roi_floor||0.15)*100).toFixed(0)}% 확보가</div></div>
-    <div class="stbox rec"><div class="stl">권장 · 기대가치 최적</div><div class="stv goldc">${won(r.recommended_bid)}<span style="font-size:11px;color:var(--dim)">원</span></div><div class="sthint">최소수익 ${((st.min_roi_floor||0.08)*100).toFixed(0)}%+ 지키며 성공률×순이익 최대</div></div>
-    <div class="stbox"><div class="stl">공격 · 성공 확보</div><div class="stv">${won(st.win_target)}<span style="font-size:11px;color:var(--dim)">원</span></div><div class="sthint">낙찰확률 60%+ 최소가</div></div></div>`;
-  const brkHTML=`<div class="brk">`+["환금성","수익성","성공률","권리안전","안전마진"].map(k=>`<div class="bk"><div class="bkl">${k}</div><div class="bktrack"><div style="width:${bd[k]||0}%"></div></div><div class="bkv">${bd[k]||0}</div></div>`).join("")+`</div>`;
-  const liqHTML=(lq.signals&&lq.signals.length)?`<div class="liqsig"><span style="font-size:11px;color:var(--mut)">환금성 신호:</span>${lq.signals.map(x=>`<span class="chip">${x}</span>`).join("")}</div>`:"";
-  det.innerHTML=`<td colspan="8"><div class="dt">${stratHTML}${brkHTML}${liqHTML}
-    <div class="costs"><div style="font-size:12px;color:var(--mut);margin-bottom:8px">예상 매도가 ${won(r.market_price)}원 <span style="color:var(--dim)">(${r.market_source})</span> · 적정 입찰가 ${disc}</div>
-      <table><tr><td>예상 매도가(시세)</td><td class="num">${won(r.market_price)}원</td></tr>
-      ${Object.entries(r.cost_items).map(([k,v])=>v?`<tr><td>− ${k}</td><td class="num">${won(v)}원</td></tr>`:"").join("")}
-      <tr style="border-top:1px solid var(--line)"><td style="color:var(--tx);font-weight:700">= 순이익</td><td class="num ${sc(r.net_profit)}" style="font-weight:700">${won(r.net_profit)}원</td></tr></table>
-      ${rk_flags(r)}</div>
-    <div class="cbox"><div class="ct"><span>입찰가별 성공률(파랑)·순이익(금색)</span><span>낙찰가율 기대 ${r.ratio_dist.mean}%±${r.ratio_dist.std}</span></div>
-      <canvas class="dcurve" height="150"></canvas></div>
-    </div></td>`;
-  tr.after(det);drawCurveFrom(det.querySelector(".dcurve"),r);}
-function rk_flags(r){const f=r.rights_risk?.flags||[];return f.length?`<div class="flags">${f.map(x=>`<span class="flag">${x}</span>`).join("")}</div>`:"";}
-function drawCurveFrom(cv,r){const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.height;cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);
-  const cur=r.curve;let pmin=1e18,pmax=-1e18;cur.forEach(c=>{pmin=Math.min(pmin,c.profit);pmax=Math.max(pmax,c.profit);});
-  const lo=cur[0].bid,hi=cur.at(-1).bid,pad=6;const X=b=>pad+(b-lo)/(hi-lo)*(W-2*pad),Yw=w=>H-pad-w*(H-2*pad),Yp=p=>H-pad-((p-pmin)/((pmax-pmin)||1))*(H-2*pad);
-  if(pmin<0&&pmax>0){g.strokeStyle="#2a3342";g.setLineDash([3,4]);g.beginPath();g.moveTo(pad,Yp(0));g.lineTo(W-pad,Yp(0));g.stroke();g.setLineDash([]);}
+const SORT={score:(a,b)=>b.score-a.score,roi:(a,b)=>b.roi-a.roi,profit:(a,b)=>b.net_profit-a.net_profit,win:(a,b)=>b.success_prob-a.success_prob};
+function shown(){return AN.properties.filter(r=>FILTER==="전체"||r.type===FILTER).sort(SORT[el("sort").value])}
+function renderGrid(){
+  const rows=shown();
+  el("grid").innerHTML=rows.map((r,i)=>cardHTML(r,i)).join("")||'<div class="box" style="color:var(--mut)">해당 유형 물건이 없습니다.</div>';
+  el("grid").querySelectorAll(".card").forEach(c=>c.onclick=()=>{
+    c.classList.toggle("open");
+    if(c.classList.contains("open"))drawCurve(c.querySelector(".cv"),rows[+c.dataset.i]);
+  });
+}
+function drawCurve(cv,r){const cur=r.curve;if(!cur)return;const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.height;
+  cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);
+  let pmin=1e18,pmax=-1e18;cur.forEach(c=>{pmin=Math.min(pmin,c.profit);pmax=Math.max(pmax,c.profit)});
+  const lo=cur[0].bid,hi=cur.at(-1).bid,p=6,X=b=>p+(b-lo)/(hi-lo)*(W-2*p),Yw=w=>H-p-w*(H-2*p),Yp=v=>H-p-((v-pmin)/((pmax-pmin)||1))*(H-2*p);
+  if(pmin<0&&pmax>0){g.strokeStyle="#2a3342";g.setLineDash([3,4]);g.beginPath();g.moveTo(p,Yp(0));g.lineTo(W-p,Yp(0));g.stroke();g.setLineDash([])}
   g.strokeStyle="#E0A82E";g.lineWidth=2;g.beginPath();cur.forEach((c,i)=>i?g.lineTo(X(c.bid),Yp(c.profit)):g.moveTo(X(c.bid),Yp(c.profit)));g.stroke();
   g.strokeStyle="#5B9DFF";g.lineWidth=2;g.beginPath();cur.forEach((c,i)=>i?g.lineTo(X(c.bid),Yw(c.win)):g.moveTo(X(c.bid),Yw(c.win)));g.stroke();
-  g.strokeStyle="rgba(224,168,46,.5)";g.setLineDash([2,3]);g.beginPath();g.moveTo(X(r.recommended_bid),pad);g.lineTo(X(r.recommended_bid),H-pad);g.stroke();g.setLineDash([]);}
+  g.strokeStyle="rgba(224,168,46,.5)";g.setLineDash([2,3]);g.beginPath();g.moveTo(X(r.recommended_bid),p);g.lineTo(X(r.recommended_bid),H-p);g.stroke();g.setLineDash([])}
 
-/* 과거 실적 */
-function renderPast(){const bt=ANALYSIS.backtest,s=bt.summary;const wd=ANALYSIS.history_lookback_days;if(wd)el("pastSub").textContent=`실제 낙찰가 → 최종 매도가 기준 수익률 · 최근 ${wd}일 (${ANALYSIS.history_used}/${ANALYSIS.history_total}건)`;
-  el("pastKpi").innerHTML=[["실현 사례",s.n+"건","goldc"],["평균 수익률",(s.avg_roi*100).toFixed(1)+"%",sc(s.avg_roi)],
-    ["수익 실현률",pct(s.win_rate_positive),"cool"],["누적 순이익",won(s.total_net_profit)+"원",sc(s.total_net_profit)]]
-    .map(([l,v,c])=>`<div class="kt"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`).join("");
-  const cases=[...bt.cases].sort((a,b)=>b.roi-a.roi);
-  el("pastBody").innerHTML=cases.map(c=>`<tr><td><div class="pname" style="font-size:13px">${c.id}</div></td>
-    <td style="text-align:left;color:var(--mut)">${c.region} · ${c.type}</td>
-    <td class="num">${won(c.won_bid)}<span style="color:var(--dim);font-size:11px"> (${c.sale_ratio}%)</span></td>
-    <td class="num">${won(c.resale_price)}</td>
-    <td class="num ${sc(c.net_profit)}">${won(c.net_profit)}</td>
-    <td class="num ${sc(c.roi)}" style="font-weight:750">${(c.roi*100).toFixed(1)}%</td>
-    <td class="num" style="color:var(--mut)">${c.resale_date||"—"}</td></tr>`).join("");
-  const rs=ANALYSIS.region_stats,mx=Math.max(...Object.values(rs).map(x=>x.avg_sale_ratio),100);
-  el("regionBars").innerHTML=Object.entries(rs).map(([k,v])=>`<div class="bar"><div title="${k}">${k}</div>
-    <div class="track2"><div class="fill" style="width:${(v.avg_sale_ratio/mx*100).toFixed(0)}%"></div></div>
-    <div class="num" style="text-align:right">${v.avg_sale_ratio}%</div></div>`).join("");
-  drawScatter(cases);}
-function drawScatter(cases){const cv=el("scatter"),dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.height;cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);g.clearRect(0,0,W,H);
-  const pad=36;const xs=cases.map(c=>c.sale_ratio||0),ys=cases.map(c=>c.roi);
-  const xmin=Math.min(...xs)-3,xmax=Math.max(...xs)+3,ymin=Math.min(0,...ys),ymax=Math.max(...ys);
-  const X=v=>pad+((v-xmin)/((xmax-xmin)||1))*(W-pad-12),Y=v=>H-pad-((v-ymin)/((ymax-ymin)||1))*(H-pad-12);
-  g.strokeStyle="#212836";g.beginPath();g.moveTo(pad,10);g.lineTo(pad,H-pad);g.lineTo(W-6,H-pad);g.stroke();
-  g.fillStyle="#5B6473";g.font="11px Pretendard";g.fillText("낙찰가율(%) →",W-92,H-pad+18);
-  g.save();g.translate(12,H/2);g.rotate(-Math.PI/2);g.fillText("수익률 →",0,0);g.restore();
-  if(ymin<0){g.strokeStyle="#2a3342";g.setLineDash([3,4]);g.beginPath();g.moveTo(pad,Y(0));g.lineTo(W-6,Y(0));g.stroke();g.setLineDash([]);}
-  cases.forEach(c=>{const x=X(c.sale_ratio),y=Y(c.roi);g.fillStyle=c.roi>=0?"#3DD68C":"#E5484D";g.beginPath();g.arc(x,y,5,0,7);g.fill();});}
+function renderBrief(){const P=AN.properties,fit=P.filter(r=>verdict(r)[1]==="입찰 적합").length;
+  const roi=P.length?P.reduce((s,r)=>s+r.roi,0)/P.length:0,past=AN.backtest.summary;
+  el("brief").innerHTML=[["물건",P.length+"건","gold"],["입찰 적합",fit+"건","pos"],
+    ["평균 ROI",(roi*100).toFixed(1)+"%",sc(roi)],["과거 수익률",(past.avg_roi*100).toFixed(1)+"%",sc(past.avg_roi)]]
+    .map(([k,v,c])=>`<div class="kt"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join("")}
+function renderChips(){const types=["전체",...new Set(AN.properties.map(r=>r.type))];
+  el("chips").innerHTML=types.map(t=>`<span class="chip${t===FILTER?" on":""}" data-t="${t}">${t}</span>`).join("");
+  el("chips").querySelectorAll(".chip").forEach(c=>c.onclick=()=>{FILTER=c.dataset.t;
+    el("chips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x.dataset.t===FILTER));renderGrid()})}
+function renderPast(){const bt=AN.backtest,s=bt.summary,wd=AN.history_lookback_days;
+  if(wd)el("pastSub").textContent=`낙찰가 → 매도가 기준 수익률 · 최근 ${wd}일 (${AN.history_used}/${AN.history_total}건)`;
+  el("pastKpi").innerHTML=[["실현",s.n+"건","gold"],["평균 수익률",(s.avg_roi*100).toFixed(1)+"%",sc(s.avg_roi)],["누적 순이익",won(s.total_net_profit),sc(s.total_net_profit)]]
+    .map(([k,v,c])=>`<div class="kt"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join("");
+  el("pastBody").innerHTML=[...bt.cases].sort((a,b)=>b.roi-a.roi).map(c=>`<tr>
+    <td style="color:var(--mut)">${c.region} · ${c.type}</td><td class="num">${won(c.won_bid)}</td>
+    <td class="num">${won(c.resale_price)}</td><td class="num ${sc(c.roi)}" style="font-weight:750">${(c.roi*100).toFixed(1)}%</td></tr>`).join("");
+  const rs=AN.region_stats,mx=Math.max(...Object.values(rs).map(x=>x.avg_sale_ratio),100);
+  el("bars").innerHTML=Object.entries(rs).map(([k,v])=>`<div class="bar"><div title="${k}">${k}</div>
+    <div class="track"><div class="fill" style="width:${(v.avg_sale_ratio/mx*100).toFixed(0)}%"></div></div>
+    <div class="num" style="text-align:right">${v.avg_sale_ratio}%</div></div>`).join("")}
 
-/* 직접 계산기 */
-function runCalc(){const p={region:val("c_region"),type:val("c_type"),appraisal:+val("c_appr"),min_bid:+val("c_min"),fail_rounds:+val("c_fail"),exclusive_area:+val("c_area"),eviction:val("c_evic"),assumed_deposit:+val("c_dep")||0,holding_months:+val("c_hold")||12};
-  const sale=+val("c_mkt")||p.appraisal;const{meanAdj,std,lam}=ratioBidders(p,sale,A);const liq=liquidityScoreJS(p,A);
-  const strat=bidStrategiesJS(sale,p,A,p.appraisal,meanAdj,std,liq.score);const rec=Math.max(strat.ev_optimal,p.min_bid);
-  const np=netProfit(rec,sale,p,A),win=successProb(rec,p.appraisal,meanAdj,std);const score=compositeJS(p,rec,sale,A,liq);
-  const sbc=score>=55?"pos":score>=40?"goldc":"neg";
-  el("calcRes").innerHTML=`종합 점수 <b class="${sbc}" style="font-size:18px">${score}점</b> · 환금성 <b class="cool">${liq.grade}(${liq.score})</b><br>
-    <b class="goldc">권장 ${won(rec)}원</b> · 성공률 <b class="cool">${pct(win)}</b> ~${lam}명<br>
-    순이익 <b class="${sc(np.profit)}">${won(np.profit)}원</b> · ROI <b class="${sc(np.roi)}">${(np.roi*100).toFixed(1)}%</b><br>
-    <span style="font-size:12px;color:var(--dim)">보수 ${won(strat.safe_max)} · 권장 ${won(rec)} · 공격 ${won(strat.win_target)}</span>`;
-  const cur=[];const lo=p.min_bid,hi=p.appraisal*1.05;for(let i=0;i<=40;i++){const b=lo+(hi-lo)*i/40;cur.push({bid:b,win:successProb(b,p.appraisal,meanAdj,std),profit:netProfit(b,sale,p,A).profit});}
-  drawCurveFrom(el("calcCurve"),{curve:cur,recommended_bid:rec});}
-
-const el=id=>document.getElementById(id),val=id=>el(id).value;
 async function boot(){
-  try{const[a,b,an]=await Promise.all([fetch("data/assumptions.json").then(r=>r.json()),fetch("data/baselines.json").then(r=>r.json()),fetch("data/analysis.json").then(r=>r.json())]);A=a;B=b;ANALYSIS=an;}catch(e){}
-  el("c_region").innerHTML=Object.keys(B.sale_ratio).map(r=>`<option>${r}</option>`).join("")+`<option>기타</option>`;
-  if(ANALYSIS){el("srcTag").textContent="시세 "+(ANALYSIS.market_source_used||"—");el("genAt").textContent="갱신 "+(ANALYSIS.generated_at||"").slice(0,16).replace("T"," ");
-    renderBrief();renderTable();renderPast();}
-  else el("repBody").innerHTML=`<tr><td colspan="8" style="color:var(--mut);padding:20px">data/analysis.json이 아직 없습니다. GitHub Actions가 한 번 실행되면 물건이 표시됩니다.</td></tr>`;
-  el("sortSel").onchange=renderTable;
-  ["c_region","c_type","c_appr","c_min","c_fail","c_area","c_mkt","c_dep","c_hold","c_evic"].forEach(id=>{el(id).addEventListener("input",runCalc);el(id).addEventListener("change",runCalc);});
-  runCalc();addEventListener("resize",()=>{if(ANALYSIS)renderPast();});}
+  try{AN=await fetch("data/analysis.json").then(r=>r.json())}catch(e){}
+  if(!AN){el("grid").innerHTML='<div class="box" style="color:var(--mut)">데이터가 아직 없습니다. 파이프라인 첫 실행 후 표시됩니다.</div>';return}
+  el("meta").textContent=(AN.generated_at||"").slice(0,16).replace("T"," ");
+  renderBrief();renderChips();renderGrid();renderPast();
+  el("sort").onchange=renderGrid;
+  addEventListener("resize",()=>{const rows=shown();document.querySelectorAll(".card.open").forEach(c=>drawCurve(c.querySelector(".cv"),rows[+c.dataset.i]))});
+}
 boot();
 </script>
 </body>
