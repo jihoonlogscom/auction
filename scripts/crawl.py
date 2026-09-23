@@ -196,7 +196,7 @@ def crawl(cfg):
                "submissionid": "sbm_selectGdsDtlSrch", "SC-Pgmid": "PGJ151M01"}
 
     props, seen = [], set()
-    page, max_pages = 1, 25
+    page, max_pages = 1, cfg.get('max_pages', 500)
     while len(props) < cap and page <= max_pages:
         payload = {
             "dma_pageInfo": {"pageNo": str(page), "pageSize": "40", "totalYn": "Y" if page == 1 else "N"},

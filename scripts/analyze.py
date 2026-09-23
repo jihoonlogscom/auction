@@ -31,6 +31,32 @@ def norm_cdf(z):
     return 0.5 * (1 + math.erf(z / math.sqrt(2)))
 
 
+def _parse_date(s):
+    if not s:
+        return None
+    s = str(s)[:10]
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def filter_recent_history(history, days):
+    """과거 경매 실적을 최근 days일로 제한(기준일=재매도일 우선, 없으면 낙찰일).
+    날짜가 없는 기록은 보존한다."""
+    if not days or days <= 0:
+        return history
+    cutoff = datetime.now(timezone(timedelta(hours=9))).date() - timedelta(days=days)
+    out = []
+    for h in history:
+        ref = _parse_date(h.get("resale_date")) or _parse_date(h.get("result_date"))
+        if ref is None or ref >= cutoff:
+            out.append(h)
+    return out
+
+
 # ----------------------- 시세: 국토부 실거래가 -----------------------
 ENDPOINTS = {
     "아파트": ("1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", ("aptNm", "아파트")),
@@ -440,13 +466,17 @@ def main():
     props = load("properties.json")
     baselines = load("baselines.json")
     a = load("assumptions.json")
-    history = load("auction-history.json")
+    history_all = load("auction-history.json")
+    lookback = a.get("history_lookback_days", 30)
+    history = filter_recent_history(history_all, lookback)   # 과거 실적은 최근 N일만
 
     results = [analyze_property(p, baselines, a, history, key) for p in props]
     results.sort(key=lambda r: r["score"], reverse=True)
     save("analysis.json", {
         "generated_at": datetime.now(timezone(timedelta(hours=9))).isoformat(),
         "market_source_used": "molit_api" if key else "fallback(override/appraisal)",
+        "history_lookback_days": lookback,
+        "history_used": len(history), "history_total": len(history_all),
         "assumptions": a, "properties": results,
         "backtest": backtest(history), "region_stats": region_stats(history)})
     print(f"analyzed {len(results)} → data/analysis.json")

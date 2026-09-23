@@ -1,0 +1,30 @@
+{
+  "2024타경12345": {
+    "status": "resolved",
+    "result": "낙찰",
+    "won_bid": 632000000,
+    "bidders": 8,
+    "result_date": "2026-10-14",
+    "resale_price": null
+  },
+  "2024타경45678": {
+    "status": "resolved",
+    "result": "낙찰",
+    "won_bid": 905000000,
+    "bidders": 11,
+    "result_date": "2026-10-14",
+    "resale_price": 1180000000,
+    "resale_costs": 70000000,
+    "resale_date": "2027-03"
+  },
+  "2024타경34567": {
+    "status": "resolved",
+    "result": "낙찰",
+    "won_bid": 330000000,
+    "bidders": 5,
+    "result_date": "2026-10-21",
+    "resale_price": 500000000,
+    "resale_costs": 30000000,
+    "resale_date": "2027-02"
+  }
+}

@@ -140,7 +140,7 @@
   </section>
 
   <section>
-    <div class="sh"><h2>과거 경매 실적</h2><span class="sub">실제 낙찰가 → 최종 매도가 기준 수익률</span></div>
+    <div class="sh"><h2>과거 경매 실적</h2><span class="sub" id="pastSub">실제 낙찰가 → 최종 매도가 기준 수익률</span></div>
     <div class="brief" id="pastKpi" style="grid-template-columns:repeat(4,1fr);margin-top:0"></div>
     <div class="tbl-wrap" style="margin-top:14px"><div class="scroll"><table class="rep">
       <thead><tr><th>사건</th><th>지역·유형</th><th>낙찰가(입찰가)</th><th>최종 매도가</th><th>순이익</th><th>수익률</th><th>매도시점</th></tr></thead>
@@ -271,7 +271,7 @@ function drawCurveFrom(cv,r){const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv
   g.strokeStyle="rgba(224,168,46,.5)";g.setLineDash([2,3]);g.beginPath();g.moveTo(X(r.recommended_bid),pad);g.lineTo(X(r.recommended_bid),H-pad);g.stroke();g.setLineDash([]);}
 
 /* 과거 실적 */
-function renderPast(){const bt=ANALYSIS.backtest,s=bt.summary;
+function renderPast(){const bt=ANALYSIS.backtest,s=bt.summary;const wd=ANALYSIS.history_lookback_days;if(wd)el("pastSub").textContent=`실제 낙찰가 → 최종 매도가 기준 수익률 · 최근 ${wd}일 (${ANALYSIS.history_used}/${ANALYSIS.history_total}건)`;
   el("pastKpi").innerHTML=[["실현 사례",s.n+"건","goldc"],["평균 수익률",(s.avg_roi*100).toFixed(1)+"%",sc(s.avg_roi)],
     ["수익 실현률",pct(s.win_rate_positive),"cool"],["누적 순이익",won(s.total_net_profit)+"원",sc(s.total_net_profit)]]
     .map(([l,v,c])=>`<div class="kt"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`).join("");
