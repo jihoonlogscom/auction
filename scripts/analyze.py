@@ -136,7 +136,7 @@ def build_trade_cache(props, key, months=6, workers=8):
     with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
         for k, rows in ex.map(work, uniq):
             cache[k] = rows
-    print(f"[analyze] 시세 캐시: {len(uniq)}개 (유형·시군구) × {months}개월 동시 조회 완료", file=sys.stderr)
+    print(f"[analyze] 시세 캐시 완료: {len(uniq)}개 (유형·시군구) × {months}개월", file=sys.stderr, flush=True)
     return cache
 
 
@@ -502,8 +502,9 @@ def main():
 
     months = a.get("molit_months", 6)
     workers = a.get("molit_workers", 8)
+    print(f"[analyze] 물건 {len(props)}건 · 시세 캐시 준비 중(국토부 동시 조회)...", flush=True)
     cache = build_trade_cache(props, key, months, workers)   # 시군구당 1회, 동시 조회
-
+    print(f"[analyze] 물건 분석 중...", flush=True)
     results = [analyze_property(p, baselines, a, history, cache) for p in props]
     results.sort(key=lambda r: r["score"], reverse=True)
     save("analysis.json", {
@@ -513,7 +514,7 @@ def main():
         "history_used": len(history), "history_total": len(history_all),
         "assumptions": a, "properties": results,
         "backtest": backtest(history), "region_stats": region_stats(history)})
-    print(f"analyzed {len(results)} → data/analysis.json")
+    print(f"[analyze] 완료: {len(results)}건 → data/analysis.json", flush=True)
     for r in results:
         lq = r["liquidity"]
         print(f'  [{r["score"]:>3}점] {r["apt_name"] or r["type"]} {r["region"]}: '

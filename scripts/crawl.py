@@ -205,10 +205,10 @@ def fetch_page(opener, page, bgn, end, timeout=12, retries=3):
                 return data.get("dlt_srchResult", []), total
         except urllib.error.HTTPError as e:
             if attempt == retries - 1:
-                print(f"[crawl] p{page} HTTP {e.code}", file=sys.stderr)
+                print(f"[crawl] p{page} HTTP {e.code}", file=sys.stderr, flush=True)
         except Exception as e:  # noqa: BLE001
             if attempt == retries - 1:
-                print(f"[crawl] p{page} {type(e).__name__}", file=sys.stderr)
+                print(f"[crawl] p{page} {type(e).__name__}", file=sys.stderr, flush=True)
         time.sleep(0.35 * (attempt + 1) + random.uniform(0.05, 0.15))
     return None, None
 
@@ -257,17 +257,21 @@ def crawl(cfg):
     now = datetime.now(KST)
     bgn, end = now.strftime("%Y%m%d"), (now + timedelta(days=days)).strftime("%Y%m%d")
 
+    t0 = time.time()
+    print(f"[crawl] 수집 시작 · 기간 {bgn}~{end} · 워커 {workers}", flush=True)
+    print("[crawl] 세션 준비 중...", flush=True)
     opener = make_opener()          # 세션 1개(데운)를 모든 스레드가 공유
+    print("[crawl] 1페이지 조회(총건수 확인) 중...", flush=True)
     first_rows, total = fetch_page(opener, 1, bgn, end, timeout, retries)
     if first_rows is None:
-        print("[crawl] 1페이지 실패(재시도 초과) — 수집 중단", file=sys.stderr)
+        print("[crawl] 1페이지 실패(재시도 초과) — 수집 중단", file=sys.stderr, flush=True)
         return []
     if total and total > 0:
         total_pages = min(math.ceil(total / 40), max_pages_cap)
-        print(f"[crawl] 총 {total:,}건 / {total_pages}페이지")
+        print(f"[crawl] 총 {total:,}건 / {total_pages}페이지 · 병렬 수집 시작", flush=True)
     else:
         total_pages = min(60, max_pages_cap)
-        print(f"[crawl] 총건수 확인불가 — 기본 {total_pages}페이지 스캔")
+        print(f"[crawl] 총건수 확인불가 — 기본 {total_pages}페이지 스캔", flush=True)
 
     props, seen = [], set()
 
@@ -288,12 +292,16 @@ def crawl(cfg):
         chunk = pages[i:i + batch]
         with ThreadPoolExecutor(max_workers=workers) as ex:
             results = list(ex.map(lambda p: fetch_page(opener, p, bgn, end, timeout, retries)[0], chunk))
+        ok = sum(1 for r in results if r is not None)
         for rows in results:
             take(rows)
-        print(f"[crawl] ~{chunk[-1]}/{total_pages}p (누적 {len(props)})")
+        done = chunk[-1]
+        pctv = done * 100 // total_pages
+        print(f"[crawl] {done}/{total_pages}p ({pctv}%) · 응답 {ok}/{len(chunk)} · 누적 {len(props)}건 · {time.time()-t0:.0f}s",
+              flush=True)
         if len(props) >= cap:
             break
-    print(f"[crawl] 수집 {len(props)}건")
+    print(f"[crawl] 완료: 수집 {len(props)}건 · 총 {time.time()-t0:.0f}s", flush=True)
     return props
 
 
