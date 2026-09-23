@@ -17,9 +17,9 @@
 
 표준 라이브러리만 사용.
 """
-import os, sys, json, re, ssl, time
+import os, sys, json, re, ssl, time, threading
 import http.cookiejar
-import urllib.request
+import urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
@@ -92,7 +92,7 @@ def region_from_address(addr):
     p = addr.split()
     sido = p[0]
     short = ("서울" if "서울" in sido else "인천" if "인천" in sido
-             else "경기" if "경기" in sido else sido.replace("특별시", "").replace("광역시", "").replace("도", ""))
+    else "경기" if "경기" in sido else sido.replace("특별시", "").replace("광역시", "").replace("도", ""))
     if short in ("서울", "인천"):
         for t in p[1:]:
             if t.endswith("구") or t.endswith("군"):
