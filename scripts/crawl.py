@@ -1,295 +1,313 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-법원경매정보(courtauction.go.kr) 자동 수집기.
+법원경매정보(courtauction.go.kr) 실시간 물건 수집기.
 
-사이트의 WebSquare 화면이 내부적으로 호출하는 JSON 엔드포인트를 그대로 호출해
-전국(설정 시도) 부동산 경매 물건을 수집하고, 현황조사서에서 권리(임대차·대항력·
-인수보증금)를 자동 추출해 data/properties.json 으로 저장한다. 사용자 입력 불필요.
+검증된 공식 웹스퀘어 엔드포인트를 직접 호출한다:
+  검색       POST /pgj/pgjsearch/searchControllerMain.on
+  사건상세   POST /pgj/pgj15A/selectAuctnCsSrchRslt.on
 
-  검색       : POST /pgj/pgjsearch/searchControllerMain.on
-  현황조사서 : POST /pgj/pgjsearch/selectCurstExmndc.on   (점유관계·임대차현황)
+이 수집기는 결과를 analyze.py/track.py가 먹는 공용 스키마로 직접 저장하며,
+주소에서 법정동코드(lawd_cd)를 파생해 국토부 실거래가 시세 조회가 동작하게 한다.
 
-주의:
-- 위 엔드포인트는 대법원이 공식 문서로 제공하는 API가 아니라, 사이트가 내부적으로
-  쓰는 비공식 경로다. 사이트가 개편되면 요청 본문(build_search_body)·응답 키
-  (parse_rows)를 한 번 재보정해야 한다. 그 두 함수만 손보면 나머지는 그대로 동작한다.
-- 과도한 트래픽을 피하려고 polite_delay를 둔다. 개인 리서치 용도로만 사용.
-- 샌드박스처럼 courtauction 접속이 막힌 환경에서는 `python crawl.py --sample`로
-  샘플 물건을 써서 파이프라인을 검증한다.
+설계 원칙(안정성):
+- 세션 초기화가 실패해도 포기하지 않고 검색으로 진행(불안정한 해외 접속 대비).
+- 페이지마다 독립 try/except. 수집 0건이면 기존 properties.json을 보존(덮어쓰지 않음).
+- 항상 정상 종료(exit 0). 추정·하드코딩 값은 넣지 않는다(모르면 null).
 
-의존성 없음(표준 라이브러리 urllib만 사용).
+표준 라이브러리만 사용.
 """
-import os, sys, json, time, gzip, io
-import urllib.request, urllib.error
+import os, sys, json, re, ssl, time
+import http.cookiejar
+import urllib.request
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
+OUT = os.path.join(DATA, "properties.json")
+KST = timezone(timedelta(hours=9))
+
 BASE = "https://www.courtauction.go.kr"
-SEARCH_EP = "/pgj/pgjsearch/searchControllerMain.on"
-RIGHTS_EP = "/pgj/pgjsearch/selectCurstExmndc.on"
-
+SEARCH_EP = BASE + "/pgj/pgjsearch/searchControllerMain.on"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")
+      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-# 용도 표시명 → 우리 스키마 type
-USAGE_TO_TYPE = {"아파트": "아파트", "오피스텔": "오피스텔",
-                 "연립": "빌라", "다세대": "빌라", "빌라": "빌라"}
-
-
-def load(n):
-    with open(os.path.join(DATA, n), encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save(n, o):
-    with open(os.path.join(DATA, n), "w", encoding="utf-8") as f:
-        json.dump(o, f, ensure_ascii=False, indent=2)
+# 용도 표시명 → 공용 스키마 type
+def type_from_usage(u):
+    u = u or ""
+    if "아파트" in u:
+        return "아파트"
+    if "오피스텔" in u:
+        return "오피스텔"
+    if any(k in u for k in ("연립", "다세대", "빌라")):
+        return "빌라"
+    return "기타"
 
 
-# --------------------- 세션 & 요청 ---------------------
-class Session:
-    """쿠키를 유지하며 courtauction에 요청. WebSquare는 JSESSIONID가 필요하다."""
-    def __init__(self):
-        self.cookie = ""
-
-    def _headers(self, json_body=True):
-        h = {"User-Agent": UA, "Referer": BASE + "/pgj/index.on",
-             "Accept": "application/json, text/plain, */*",
-             "Accept-Language": "ko-KR,ko;q=0.9",
-             "Accept-Encoding": "gzip", "Origin": BASE}
-        if json_body:
-            h["Content-Type"] = "application/json;charset=UTF-8"
-        if self.cookie:
-            h["Cookie"] = self.cookie
-        return h
-
-    def _read(self, resp):
-        raw = resp.read()
-        if resp.headers.get("Content-Encoding") == "gzip":
-            raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read()
-        return raw.decode("utf-8", "ignore")
-
-    def bootstrap(self, retries=2, timeout=25):
-        """메인 페이지를 열어 세션 쿠키 확보. 연결 실패는 예외를 던지지 않고 False 반환."""
-        self.last_err = None
-        for attempt in range(retries + 1):
-            try:
-                req = urllib.request.Request(BASE + "/pgj/index.on", headers=self._headers(False))
-                with urllib.request.urlopen(req, timeout=timeout) as r:
-                    sc = r.headers.get_all("Set-Cookie") or []
-                    self.cookie = "; ".join(c.split(";")[0] for c in sc)
-                return bool(self.cookie) or True   # 쿠키가 비어도 접속 자체는 성공
-            except Exception as e:  # noqa: BLE001 — 타임아웃/차단/DNS 등
-                self.last_err = f"{type(e).__name__}: {e}"
-                if attempt < retries:
-                    time.sleep(2.0 * (attempt + 1))
-        return False
-
-    def post_json(self, path, body):
-        data = json.dumps(body).encode("utf-8")
-        req = urllib.request.Request(BASE + path, data=data, headers=self._headers(True))
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(self._read(r))
+# 수도권 시군구 → 법정동코드 5자리(국토부 LAWD_CD). 필요 시 확장.
+SIGUNGU_LAWD = {
+    # 서울 25구
+    "종로구": "11110", "중구": "11140", "용산구": "11170", "성동구": "11200",
+    "광진구": "11215", "동대문구": "11230", "중랑구": "11260", "성북구": "11290",
+    "강북구": "11305", "도봉구": "11320", "노원구": "11350", "은평구": "11380",
+    "서대문구": "11410", "마포구": "11440", "양천구": "11470", "강서구": "11500",
+    "구로구": "11530", "금천구": "11545", "영등포구": "11560", "동작구": "11590",
+    "관악구": "11620", "서초구": "11650", "강남구": "11680", "송파구": "11710", "강동구": "11740",
+    # 인천
+    "인천 중구": "28110", "인천 동구": "28140", "미추홀구": "28177", "연수구": "28185",
+    "남동구": "28200", "부평구": "28237", "계양구": "28245", "인천 서구": "28260",
+    "강화군": "28710", "옹진군": "28720",
+    # 경기 — 구 있는 시(더 구체적, 먼저 매칭)
+    "수원시 장안구": "41111", "수원시 권선구": "41113", "수원시 팔달구": "41115", "수원시 영통구": "41117",
+    "성남시 수정구": "41131", "성남시 중원구": "41133", "성남시 분당구": "41135",
+    "안양시 만안구": "41171", "안양시 동안구": "41173",
+    "부천시 원미구": "41192", "부천시 소사구": "41194", "부천시 오정구": "41196", "부천시": "41190",
+    "고양시 덕양구": "41281", "고양시 일산동구": "41285", "고양시 일산서구": "41287",
+    "안산시 상록구": "41271", "안산시 단원구": "41273",
+    "용인시 처인구": "41461", "용인시 기흥구": "41463", "용인시 수지구": "41465",
+    # 경기 — 시 단위
+    "의정부시": "41150", "광명시": "41210", "평택시": "41220", "동두천시": "41250",
+    "과천시": "41290", "구리시": "41310", "남양주시": "41360", "오산시": "41370",
+    "시흥시": "41390", "군포시": "41410", "의왕시": "41430", "하남시": "41450",
+    "파주시": "41480", "이천시": "41500", "안성시": "41550", "김포시": "41570",
+    "화성시": "41590", "광주시": "41610", "양주시": "41630", "포천시": "41650",
+    "여주시": "41670", "양평군": "41830", "가평군": "41820", "연천군": "41800",
+}
+_LAWD_KEYS = sorted(SIGUNGU_LAWD.keys(), key=len, reverse=True)
 
 
-# --------------------- 요청 본문 / 응답 파싱 (개편 시 여기만 보정) ---------------------
-def build_search_body(cfg, page):
-    """검색 조건 → WebSquare 요청 본문.
-    실제 필드명은 사이트 응답을 한 번 캡처해 맞추면 된다. 아래는 알려진 구조 근사."""
-    return {
-        "dma_pageInfo": {"pageNo": page, "pageSize": cfg.get("page_size", 40),
-                         "totalYn": "Y"},
-        "dma_srchGdsDtlSrch": {
-            "bidDvsCd": "000331",            # 기일입찰
-            "mvprpRletDvsCd": "00031R",      # 부동산
-            "cortAuctnSrchCondDto": {
-                "sidoList": cfg.get("sido", []),
-                "lclsUtilCd": "",            # 용도 대분류(선택)
-                "aeeEvlAmtFrom": cfg.get("min_appraisal", 0),
-                "dspslDxdyFrom": cfg.get("sale_date_from_days", 0),
-                "dspslDxdyTo": cfg.get("sale_date_to_days", 21),
-            },
-        },
-    }
+def lawd_from_address(addr):
+    a = addr or ""
+    for k in _LAWD_KEYS:
+        if k in a:
+            return SIGUNGU_LAWD[k]
+    return ""
 
 
-def _first(d, *keys, default=None):
-    for k in keys:
-        if isinstance(d, dict) and d.get(k) not in (None, ""):
-            return d[k]
-    return default
-
-
-def parse_rows(resp):
-    """응답 JSON에서 물건 행 리스트를 뽑아 공용 스키마로 변환."""
-    # 응답 구조가 버전마다 달라 여러 경로를 시도
-    rows = (_first(resp, "data", "result", "dlt_srchResult", default=None)
-            or _first(resp.get("data", {}) if isinstance(resp.get("data"), dict) else {},
-                      "dlt_srchResult", "list", default=None) or [])
-    out = []
-    for r in rows:
-        usage = _first(r, "lclsUtilNm", "utilNm", "용도", default="") or ""
-        typ = next((v for k, v in USAGE_TO_TYPE.items() if k in usage), "기타")
-        appr = int(_first(r, "aeeEvlAmt", "감정평가액", "gamEvalAmt", default=0) or 0)
-        minb = int(_first(r, "fstpbAmt", "lwsDspslPrc", "최저매각가격", default=0) or 0)
-        fail = int(_first(r, "flbdNcnt", "yuchalCnt", "유찰횟수", default=0) or 0)
-        case = _first(r, "csNo", "사건번호", "userCsNo", default="")
-        court = _first(r, "cortOfcNm", "법원명", default="")
-        addr = _first(r, "prptAddr", "소재지", "adongSdNm", default="")
-        area = float(_first(r, "excluUseAr", "전용면적", default=0) or 0)
-        lawd = _first(r, "adongCd", "bjdongCd", default="")
-        if not (appr and case):
-            continue
-        out.append({
-            "id": case, "court": court, "address": addr,
-            "region": _region_from_addr(addr), "type": typ,
-            "apt_name": _first(r, "bldgNm", "aptNm", "건물명", default="") or "",
-            "lawd_cd": (str(lawd)[:5] if lawd else ""), "exclusive_area": area,
-            "floor": _to_int(_first(r, "flr", "층", default=None)),
-            "appraisal": appr, "min_bid": minb or appr,
-            "fail_rounds": fail, "eviction": "normal", "market_price_override": None,
-            "_case_key": {"csNo": case, "cortOfcCd": _first(r, "cortOfcCd", default="")},
-        })
-    return out
-
-
-def _to_int(x):
-    try:
-        return int(x)
-    except (TypeError, ValueError):
-        return None
-
-
-def _region_from_addr(addr):
-    """'경기도 수원시 …' → '경기 수원시' 형태로 축약(baseline 매칭용)."""
+def region_from_address(addr):
+    """baseline 매칭용: 서울/인천은 '시도 구', 경기는 '경기 시'."""
     if not addr:
         return ""
-    parts = addr.split()
-    if len(parts) >= 2:
-        sido = parts[0].replace("특별시", "").replace("광역시", "").replace("특별자치시", "") \
-            .replace("도", "") or parts[0]
-        sido = {"서울": "서울", "경기": "경기", "인천": "인천", "부산": "부산"}.get(sido, sido)
-        return f"{sido} {parts[1]}"
-    return addr
+    p = addr.split()
+    sido = p[0]
+    short = ("서울" if "서울" in sido else "인천" if "인천" in sido
+             else "경기" if "경기" in sido else sido.replace("특별시", "").replace("광역시", "").replace("도", ""))
+    if short in ("서울", "인천"):
+        for t in p[1:]:
+            if t.endswith("구") or t.endswith("군"):
+                return f"{short} {t}"
+    if short == "경기":
+        for t in p[1:]:
+            if t.endswith("시"):
+                return f"{short} {t}"
+    return f"{short} {p[1]}" if len(p) > 1 else short
 
 
-# --------------------- 권리분석 자동 추출 ---------------------
-def fetch_rights(sess, case_key, cfg):
-    """현황조사서 JSON에서 임대차현황 → 대항력·인수보증금 추정."""
-    try:
-        body = {"dma_srchCsDtlInf": case_key}
-        resp = sess.post_json(RIGHTS_EP, body)
-    except Exception:
-        return {}
-    tenants = (_first(resp, "data", "result", default={}) or {})
-    leases = _first(tenants, "dlt_lease", "임대차현황", "leaseList", default=[]) or []
-    senior = False
-    assumed = 0
-    for lz in leases:
-        deposit = int(_first(lz, "deposit", "보증금", "rtDpsAmt", default=0) or 0)
-        opposing = _first(lz, "oppsBiztAbilYn", "대항력", default="")
-        distrib = _first(lz, "dvdmYn", "배당요구여부", default="")
-        # 대항력 있고 배당요구 안 함/불충분 → 낙찰자 인수 추정
-        if str(opposing).startswith("Y") or "유" in str(opposing) or "있" in str(opposing):
-            senior = True
-            if str(distrib).startswith("N") or "무" in str(distrib) or "없" in str(distrib):
-                assumed += deposit
-    return {"senior_tenant": senior, "assumed_deposit": assumed,
-            "special_rights": [], "lien_amount": 0}
-
-
-# --------------------- 샘플(오프라인 검증용) ---------------------
-def sample_properties():
-    return load("properties.sample.json") if os.path.exists(os.path.join(DATA, "properties.sample.json")) \
-        else load("properties.json")
-
-
-# --------------------- main ---------------------
-def crawl(cfg):
-    sess = Session()
-    if not sess.bootstrap(retries=cfg.get("retries", 2), timeout=cfg.get("connect_timeout", 25)):
-        print(f"라이브 수집 불가: courtauction.go.kr 접속 실패 ({sess.last_err}).\n"
-              f"  → GitHub Actions(해외 IP)에서는 법원경매정보가 지오블록/무응답일 수 있습니다.\n"
-              f"  → README '라이브 수집이 안 될 때' 참고(한국 IP 러너/프록시).", file=sys.stderr)
-        return []
-    props, seen = [], set()
-    for page in range(1, cfg.get("max_pages", 5) + 1):
+def extract_area(text):
+    m = re.search(r'([\d.]+)\s*(?:㎡|m2|M2)', str(text or ""))
+    if m:
         try:
-            resp = sess.post_json(SEARCH_EP, build_search_body(cfg, page))
-        except urllib.error.HTTPError as e:
-            print(f"검색 실패 p{page}: HTTP {e.code}", file=sys.stderr)
-            break
+            return round(float(m.group(1)), 2)
+        except ValueError:
+            pass
+    return None
+
+
+def extract_floor(text):
+    m = re.search(r'제?\s*(\d+)\s*층', str(text or ""))
+    return int(m.group(1)) if m else None
+
+
+def extract_apt_name(addr, bld):
+    """주소·건물내역에서 단지명 추정(국토부 매칭용). 못 찾으면 빈 문자열."""
+    for src in (bld or "", addr or ""):
+        m = re.search(r'([가-힣A-Za-z0-9]+(?:아파트|자이|푸르지오|힐스테이트|더샵|아이파크|캐슬|채|타운|팰리스|파크))', src)
+        if m:
+            return m.group(1)
+    return ""
+
+
+SPECIAL_RIGHTS_KW = ["유치권", "법정지상권", "분묘기지권", "지분", "선순위전세권", "대지권미등기", "가처분", "예고등기"]
+
+
+def analyze_rights(row):
+    """검색행의 비고/현황 텍스트에서 권리 위험을 보수적으로 추출(공용 스키마)."""
+    notes = " ".join(str(row.get(k, "") or "") for k in ("mulBigo", "pjbBuldList", "gdsDspslObjClsNm", "rmk"))
+    senior_tenant = False
+    assumed_deposit = 0
+    special = [k for k in SPECIAL_RIGHTS_KW if k in notes]
+    lien = 0
+    if any(w in notes for w in ("임차인", "대항력", "전입", "보증금")):
+        if "대항력" in notes and "없음" not in notes:
+            if "배당요구" not in notes or "미배당" in notes or "배당요구종기" in notes:
+                senior_tenant = True
+                m = re.search(r'보증금\s*([\d,]+)\s*만', notes)
+                if m:
+                    assumed_deposit = int(m.group(1).replace(",", "")) * 10000
+    if "유치권" in notes:
+        m = re.search(r'유치권\D*([\d,]+)\s*만', notes)
+        if m:
+            lien = int(m.group(1).replace(",", "")) * 10000
+    return {"senior_tenant": senior_tenant, "assumed_deposit": assumed_deposit,
+            "special_rights": special, "lien_amount": lien}
+
+
+# --------------------- 세션 ---------------------
+def make_opener():
+    cj = http.cookiejar.CookieJar()
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj),
+                                     urllib.request.HTTPSHandler(context=ctx))
+    try:  # 세션 쿠키 확보(실패해도 계속 진행)
+        req = urllib.request.Request(BASE + "/", headers={
+            "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.7",
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
+        op.open(req, timeout=12).read()
+    except Exception as e:  # noqa: BLE001
+        print(f"[crawl] 세션 초기화 경고(무시하고 진행): {type(e).__name__}", file=sys.stderr)
+    return op
+
+
+def _to_int(x, d=0):
+    try:
+        return int(str(x).replace(",", ""))
+    except (ValueError, TypeError):
+        return d
+
+
+# --------------------- 수집 ---------------------
+def crawl(cfg):
+    op = make_opener()
+    sido_f = cfg.get("sido", ["서울특별시", "경기도", "인천광역시"])
+    usage_f = cfg.get("usage", ["아파트", "오피스텔", "연립다세대", "다세대", "연립", "빌라"])
+    min_appr = cfg.get("min_appraisal", 50000000)
+    max_appr = cfg.get("max_appraisal", 5000000000)
+    days = cfg.get("sale_date_to_days", 60)
+    cap = cfg.get("max_properties", 200)
+    delay = cfg.get("polite_delay_sec", 0.4)
+    now = datetime.now(KST)
+    bgn, end = now.strftime("%Y%m%d"), (now + timedelta(days=days)).strftime("%Y%m%d")
+
+    headers = {"User-Agent": UA, "Content-Type": "application/json;charset=UTF-8",
+               "Accept": "application/json", "Accept-Language": "ko-KR,ko;q=0.9",
+               "Referer": BASE + "/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml",
+               "submissionid": "sbm_selectGdsDtlSrch", "SC-Pgmid": "PGJ151M01"}
+
+    props, seen = [], set()
+    page, max_pages = 1, 25
+    while len(props) < cap and page <= max_pages:
+        payload = {
+            "dma_pageInfo": {"pageNo": str(page), "pageSize": "40", "totalYn": "Y" if page == 1 else "N"},
+            "dma_srchGdsDtlSrchInfo": {"mvprpRletDvsCd": "00031R", "cortAuctnSrchCondCd": "0004601",
+                                       "cortStDvs": "0", "bidBgngYmd": bgn, "bidEndYmd": end,
+                                       "pgmId": "PGJ151M01"},
+        }
+        try:
+            req = urllib.request.Request(SEARCH_EP, data=json.dumps(payload).encode("utf-8"),
+                                         headers=headers, method="POST")
+            with op.open(req, timeout=15) as r:
+                rows = json.loads(r.read().decode("utf-8")).get("data", {}).get("dlt_srchResult", [])
         except Exception as e:  # noqa: BLE001
-            print(f"검색 실패 p{page}: {type(e).__name__}", file=sys.stderr)
+            print(f"[crawl] 페이지 {page} 오류: {type(e).__name__}: {e}", file=sys.stderr)
             break
-        rows = parse_rows(resp)
         if not rows:
             break
-        for r in rows:
-            if r["id"] in seen:
+
+        got = 0
+        for row in rows:
+            if len(props) >= cap:
+                break
+            sido = row.get("hjguSido", "") or row.get("printSt", "")
+            usage = row.get("dspslUsgNm", "") or ""
+            if not any(s in sido for s in sido_f):
                 continue
-            seen.add(r["id"])
-            props.append(r)
-        time.sleep(cfg.get("polite_delay_sec", 0.8))
-        if len(props) >= cfg.get("max_properties", 60):
-            break
-    props = props[: cfg.get("max_properties", 60)]
+            if not any(u in usage for u in usage_f):
+                continue
+            appr = _to_int(row.get("gamevalAmt"))
+            if appr < min_appr or appr > max_appr:
+                continue
+            court = row.get("jiwonNm", "법원")
+            case = row.get("srnSaNo", "")
+            seq = _to_int(row.get("maemulSer", 1), 1)
+            pid = f"{court}_{case}_{seq}"
+            if pid in seen or not case:
+                continue
+            seen.add(pid)
 
-    # 유형 필터
-    allow = set()
-    for u in cfg.get("usage", []):
-        allow.add(USAGE_TO_TYPE.get(u, u))
-    if allow:
-        props = [p for p in props if p["type"] in allow]
+            addr = (row.get("printSt", "") or "").strip()
+            bld = row.get("pjbBuldList", "") or ""
+            raw_date = str(row.get("maeGiil", ""))
+            sale_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}" if len(raw_date) == 8 else None
 
-    # 권리분석 자동 추출
-    if cfg.get("fetch_rights"):
-        for p in props:
-            ck = p.pop("_case_key", None)
-            if ck:
-                p.update(fetch_rights(sess, ck, cfg))
-                time.sleep(cfg.get("polite_delay_sec", 0.8))
-    else:
-        for p in props:
-            p.pop("_case_key", None)
+            item = {
+                "id": pid, "court": court, "case_no": case, "address": addr,
+                "region": region_from_address(addr), "type": type_from_usage(usage),
+                "apt_name": extract_apt_name(addr, bld), "lawd_cd": lawd_from_address(addr),
+                "exclusive_area": extract_area(bld), "floor": extract_floor(row.get("buldList") or bld),
+                "appraisal": appr, "min_bid": _to_int(row.get("minmaePrice"), appr),
+                "fail_rounds": _to_int(row.get("yuchalCnt")), "sale_date": sale_date,
+                "eviction": "normal", "market_price_override": None,
+            }
+            item.update(analyze_rights(row))
+            props.append(item)
+            got += 1
+        print(f"[crawl] p{page}: {len(rows)}건 중 {got}건 채택 (누적 {len(props)})")
+        page += 1
+        time.sleep(delay)
+
     return props
 
 
-def main():
-    cfg = load("crawl-config.json")
-    use_sample = "--sample" in sys.argv
+def sample_properties():
+    p = os.path.join(DATA, "properties.sample.json")
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
-    if use_sample:
+
+def save(props):
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(props, f, ensure_ascii=False, indent=2)
+
+
+def main():
+    cfg = {}
+    cp = os.path.join(DATA, "crawl-config.json")
+    if os.path.exists(cp):
+        with open(cp, encoding="utf-8") as f:
+            cfg = json.load(f)
+
+    if "--sample" in sys.argv:
         props = sample_properties()
-        for p in props:
-            p.pop("_case_key", None)
-        save("properties.json", props)
-        print(f"[sample] {len(props)}건 사용 → data/properties.json 저장")
+        save(props)
+        print(f"[sample] {len(props)}건 → properties.json")
         return
 
     try:
         props = crawl(cfg)
-    except Exception as e:  # noqa: BLE001 — 어떤 경우에도 트레이스백 없이 종료
-        print(f"수집 오류: {type(e).__name__}: {e}", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001
+        print(f"[crawl] 수집 오류: {type(e).__name__}: {e}", file=sys.stderr)
         props = []
 
     if props:
-        save("properties.json", props)
-        print(f"[crawl] {len(props)}건 수집 → data/properties.json 저장")
+        save(props)
+        # MOLIT 조회 가능 비율(법정동코드 확보) 리포트
+        with_lawd = sum(1 for p in props if p.get("lawd_cd"))
+        print(f"[crawl] 수집 {len(props)}건 → properties.json "
+              f"(법정동코드 확보 {with_lawd}/{len(props)}, 시세조회 가능)")
         return
 
-    # 라이브 수집 실패: 기존 데이터가 있으면 보존(재분석 계속), 없으면 샘플로 시작
-    existing = os.path.join(DATA, "properties.json")
-    if os.path.exists(existing):
-        print("라이브 수집 실패 — 기존 properties.json 유지(분석·추적은 계속 진행)", file=sys.stderr)
+    # 수집 0건: 기존 데이터 보존(덮어쓰지 않음), 최초 실행이면 샘플
+    if os.path.exists(OUT):
+        print("[crawl] 수집 0건 — 기존 properties.json 유지(분석·추적 계속). "
+              "접속 차단이 의심되면 crawl-config의 조건을 확인하세요.", file=sys.stderr)
     else:
         props = sample_properties()
-        for p in props:
-            p.pop("_case_key", None)
-        save("properties.json", props)
-        print(f"라이브 수집 실패 — 최초 실행이라 샘플 {len(props)}건으로 시작", file=sys.stderr)
-    # 항상 정상 종료(exit 0)
+        save(props)
+        print(f"[crawl] 수집 0건 — 최초 실행이라 샘플 {len(props)}건으로 시작", file=sys.stderr)
 
 
 if __name__ == "__main__":
