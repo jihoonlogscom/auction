@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-23T14:31:51.071353+09:00",
-  "market_source_used": "fallback(override/appraisal)",
+  "generated_at": "2026-09-23T15:03:07.257943+09:00",
+  "market_source_used": "molit_api",
   "assumptions": {
     "updated": "2026-09-23",
     "note": "적정 입찰가·순이익·성공률 계산 가정. 세율/부대비용은 근사이며 실제 세무 판단을 대체하지 않음.",
