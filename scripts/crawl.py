@@ -17,10 +17,9 @@
 
 표준 라이브러리만 사용.
 """
-import os, sys, json, re, ssl, time, threading
+import os, sys, json, re, ssl, time
 import http.cookiejar
-import urllib.request, urllib.error
-from concurrent.futures import ThreadPoolExecutor
+import urllib.request
 from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -179,112 +178,85 @@ def _to_int(x, d=0):
 
 
 # --------------------- 수집 ---------------------
-def _opener():
-    """요청마다 독립 opener(스레드 안전, 워밍업 GET 없음)."""
-    cj = http.cookiejar.CookieJar()
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj),
-                                       urllib.request.HTTPSHandler(context=ctx))
+def crawl(cfg):
+    op = make_opener()
+    sido_f = cfg.get("sido", ["서울특별시", "경기도", "인천광역시"])
+    usage_f = cfg.get("usage", ["아파트", "오피스텔", "연립다세대", "다세대", "연립", "빌라"])
+    min_appr = cfg.get("min_appraisal", 50000000)
+    max_appr = cfg.get("max_appraisal", 5000000000)
+    days = cfg.get("sale_date_to_days", 60)
+    cap = cfg.get("max_properties", 200)
+    delay = cfg.get("polite_delay_sec", 0.4)
+    now = datetime.now(KST)
+    bgn, end = now.strftime("%Y%m%d"), (now + timedelta(days=days)).strftime("%Y%m%d")
 
-
-def fetch_page(page, page_size, bgn, end, timeout=25):
-    """검색 1페이지. 실패 시 None, 결과 없음은 []."""
     headers = {"User-Agent": UA, "Content-Type": "application/json;charset=UTF-8",
                "Accept": "application/json", "Accept-Language": "ko-KR,ko;q=0.9",
                "Referer": BASE + "/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml",
                "submissionid": "sbm_selectGdsDtlSrch", "SC-Pgmid": "PGJ151M01"}
-    payload = {
-        "dma_pageInfo": {"pageNo": str(page), "pageSize": str(page_size), "totalYn": "Y" if page == 1 else "N"},
-        "dma_srchGdsDtlSrchInfo": {"mvprpRletDvsCd": "00031R", "cortAuctnSrchCondCd": "0004601",
-                                   "cortStDvs": "0", "bidBgngYmd": bgn, "bidEndYmd": end, "pgmId": "PGJ151M01"},
-    }
-    try:
-        req = urllib.request.Request(SEARCH_EP, data=json.dumps(payload).encode("utf-8"),
-                                     headers=headers, method="POST")
-        with _opener().open(req, timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8")).get("data", {}).get("dlt_srchResult", [])
-    except Exception as e:  # noqa: BLE001
-        print(f"[crawl] p{page} 오류: {type(e).__name__}", file=sys.stderr)
-        return None
 
-
-def row_to_item(row, f):
-    sido = row.get("hjguSido", "") or row.get("printSt", "")
-    usage = row.get("dspslUsgNm", "") or ""
-    if not any(s in sido for s in f["sido"]):
-        return None
-    if not any(u in usage for u in f["usage"]):
-        return None
-    appr = _to_int(row.get("gamevalAmt"))
-    if appr < f["min_appr"] or appr > f["max_appr"]:
-        return None
-    case = row.get("srnSaNo", "")
-    if not case:
-        return None
-    court = row.get("jiwonNm", "법원")
-    seq = _to_int(row.get("maemulSer", 1), 1)
-    addr = (row.get("printSt", "") or "").strip()
-    bld = row.get("pjbBuldList", "") or ""
-    raw = str(row.get("maeGiil", ""))
-    sale_date = f"{raw[:4]}-{raw[4:6]}-{raw[6:]}" if len(raw) == 8 else None
-    item = {"id": f"{court}_{case}_{seq}", "court": court, "case_no": case, "address": addr,
-            "region": region_from_address(addr), "type": type_from_usage(usage),
-            "apt_name": extract_apt_name(addr, bld), "lawd_cd": lawd_from_address(addr),
-            "exclusive_area": extract_area(bld), "floor": extract_floor(row.get("buldList") or bld),
-            "appraisal": appr, "min_bid": _to_int(row.get("minmaePrice"), appr),
-            "fail_rounds": _to_int(row.get("yuchalCnt")), "sale_date": sale_date,
-            "eviction": "normal", "market_price_override": None}
-    item.update(analyze_rights(row))
-    return item
-
-
-def crawl(cfg):
-    f = {"sido": cfg.get("sido", ["서울특별시", "경기도", "인천광역시"]),
-         "usage": cfg.get("usage", ["아파트", "오피스텔", "연립다세대", "다세대", "연립", "빌라"]),
-         "min_appr": cfg.get("min_appraisal", 50000000),
-         "max_appr": cfg.get("max_appraisal", 5000000000)}
-    days = cfg.get("sale_date_to_days", 60)
-    cap = cfg.get("max_properties", 100000)
-    page_size = cfg.get("page_size", 100)
-    workers = max(1, cfg.get("concurrency", 3))
-    max_pages = cfg.get("max_pages", 500)
-    delay = cfg.get("polite_delay_sec", 0.3)
-    now = datetime.now(KST)
-    bgn, end = now.strftime("%Y%m%d"), (now + timedelta(days=days)).strftime("%Y%m%d")
-
-    make_opener()  # 세션 워밍업(실패 무시)
     props, seen = [], set()
-    page = 1
-    while page <= max_pages and len(props) < cap:
-        batch = list(range(page, min(page + workers, max_pages + 1)))
-        if workers > 1:
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                rowsets = list(ex.map(lambda pg: fetch_page(pg, page_size, bgn, end), batch))
-        else:
-            rowsets = [fetch_page(pg, page_size, bgn, end) for pg in batch]
-
-        any_rows = False
-        for pg, rows in zip(batch, rowsets):
-            if not rows:
-                continue
-            any_rows = True
-            got = 0
-            for row in rows:
-                if len(props) >= cap:
-                    break
-                item = row_to_item(row, f)
-                if not item or item["id"] in seen:
-                    continue
-                seen.add(item["id"])
-                props.append(item)
-                got += 1
-            print(f"[crawl] p{pg}: {len(rows)}건 중 {got}건 채택 (누적 {len(props)})")
-        if not any_rows:            # 배치 전체가 빈 결과 → 끝
+    page, max_pages = 1, cfg.get('max_pages', 500)
+    while len(props) < cap and page <= max_pages:
+        payload = {
+            "dma_pageInfo": {"pageNo": str(page), "pageSize": "40", "totalYn": "Y" if page == 1 else "N"},
+            "dma_srchGdsDtlSrchInfo": {"mvprpRletDvsCd": "00031R", "cortAuctnSrchCondCd": "0004601",
+                                       "cortStDvs": "0", "bidBgngYmd": bgn, "bidEndYmd": end,
+                                       "pgmId": "PGJ151M01"},
+        }
+        try:
+            req = urllib.request.Request(SEARCH_EP, data=json.dumps(payload).encode("utf-8"),
+                                         headers=headers, method="POST")
+            with op.open(req, timeout=15) as r:
+                rows = json.loads(r.read().decode("utf-8")).get("data", {}).get("dlt_srchResult", [])
+        except Exception as e:  # noqa: BLE001
+            print(f"[crawl] 페이지 {page} 오류: {type(e).__name__}: {e}", file=sys.stderr)
             break
-        page += workers
+        if not rows:
+            break
+
+        got = 0
+        for row in rows:
+            if len(props) >= cap:
+                break
+            sido = row.get("hjguSido", "") or row.get("printSt", "")
+            usage = row.get("dspslUsgNm", "") or ""
+            if not any(s in sido for s in sido_f):
+                continue
+            if not any(u in usage for u in usage_f):
+                continue
+            appr = _to_int(row.get("gamevalAmt"))
+            if appr < min_appr or appr > max_appr:
+                continue
+            court = row.get("jiwonNm", "법원")
+            case = row.get("srnSaNo", "")
+            seq = _to_int(row.get("maemulSer", 1), 1)
+            pid = f"{court}_{case}_{seq}"
+            if pid in seen or not case:
+                continue
+            seen.add(pid)
+
+            addr = (row.get("printSt", "") or "").strip()
+            bld = row.get("pjbBuldList", "") or ""
+            raw_date = str(row.get("maeGiil", ""))
+            sale_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}" if len(raw_date) == 8 else None
+
+            item = {
+                "id": pid, "court": court, "case_no": case, "address": addr,
+                "region": region_from_address(addr), "type": type_from_usage(usage),
+                "apt_name": extract_apt_name(addr, bld), "lawd_cd": lawd_from_address(addr),
+                "exclusive_area": extract_area(bld), "floor": extract_floor(row.get("buldList") or bld),
+                "appraisal": appr, "min_bid": _to_int(row.get("minmaePrice"), appr),
+                "fail_rounds": _to_int(row.get("yuchalCnt")), "sale_date": sale_date,
+                "eviction": "normal", "market_price_override": None,
+            }
+            item.update(analyze_rights(row))
+            props.append(item)
+            got += 1
+        print(f"[crawl] p{page}: {len(rows)}건 중 {got}건 채택 (누적 {len(props)})")
+        page += 1
         time.sleep(delay)
+
     return props
 
 
