@@ -111,5 +111,7 @@
   },
   "liquidity_gate": 0.7,
   "min_roi_floor": 0.08,
-  "history_lookback_days": 30
+  "history_lookback_days": 30,
+  "molit_months": 6,
+  "molit_workers": 8
 }

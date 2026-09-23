@@ -41,11 +41,14 @@ jobs:
       - name: 예측 스냅샷·실제결과 대조·학습파일 갱신
         run: python scripts/track.py
 
+      - name: 블로그 콘텐츠 생성 (종합점수 top10, 사건 중복 제외)
+        run: python scripts/content.py
+
       - name: 결과 커밋
         run: |
           git config user.name  "auction-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/properties.json data/analysis.json data/predictions.json data/outcomes.json data/calibration.json
+          git add data/properties.json data/analysis.json data/predictions.json data/outcomes.json data/calibration.json data/published.json content
           if git diff --cached --quiet; then
             echo "변경 없음 — 커밋 생략"
           else

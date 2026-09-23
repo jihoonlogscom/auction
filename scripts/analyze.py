@@ -9,8 +9,9 @@
 세금: 취득세(구간·농특·교육세·중과) / 양도세(단기중과·누진·장특공제·지방소득세).
 표준 라이브러리만 사용. GitHub Actions에서 secrets.MOLIT_SERVICE_KEY 주입.
 """
-import os, json, math, statistics, urllib.parse, urllib.request
+import os, sys, json, math, statistics, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -77,18 +78,17 @@ def recent_months(n=6):
     return out
 
 
-def fetch_trades(prop, key):
-    """유형별 API에서 같은 단지·유사 면적의 (금액, 층) 최근 거래 목록."""
-    ep = ENDPOINTS.get(prop.get("type"))
-    if not key or not prop.get("lawd_cd") or not ep:
-        return [], "api_skip"
+def fetch_lawd_trades(typ, lawd_cd, key, months):
+    """(유형, 법정동코드)의 최근 months개월 실거래 전체를 한 번만 조회.
+    반환: [(price, name, area, floor)]. 시군구 단위라 여러 물건이 공유(캐시 단위)."""
+    ep = ENDPOINTS.get(typ)
+    if not key or not lawd_cd or not ep:
+        return []
     path, name_tags = ep
-    name = (prop.get("apt_name") or "").strip()
-    area = prop.get("exclusive_area") or 0
     rows = []
     try:
-        for ym in recent_months(6):
-            q = urllib.parse.urlencode({"serviceKey": key, "LAWD_CD": prop["lawd_cd"],
+        for ym in recent_months(months):
+            q = urllib.parse.urlencode({"serviceKey": key, "LAWD_CD": lawd_cd,
                                         "DEAL_YMD": ym, "numOfRows": "1000"})
             with urllib.request.urlopen(f"{BASE}{path}?{q}", timeout=20) as r:
                 root = ET.fromstring(r.read().decode("utf-8", "ignore"))
@@ -99,26 +99,45 @@ def fetch_trades(prop, key):
                         if e is not None and e.text:
                             return e.text.strip()
                     return ""
-                nm = g(*name_tags)
                 amt = g("dealAmount", "거래금액").replace(",", "")
-                ex = g("excluUseAr", "전용면적")
-                fl = g("floor", "층")
                 if not amt:
                     continue
-                if name and name not in nm and nm not in name:
+                try:
+                    price = int(amt) * 10000
+                except ValueError:
                     continue
+                nm = g(*name_tags)
                 try:
-                    if area and abs(float(ex) - area) > 10:
-                        continue
+                    area = float(g("excluUseAr", "전용면적") or 0) or None
                 except ValueError:
-                    pass
+                    area = None
                 try:
-                    rows.append((int(amt) * 10000, int(fl) if fl else None))
+                    floor = int(g("floor", "층") or 0) or None
                 except ValueError:
-                    pass
-        return rows, (f"molit({len(rows)})" if rows else "no_match")
-    except Exception as e:  # noqa: BLE001
-        return [], f"api_error:{type(e).__name__}"
+                    floor = None
+                rows.append((price, nm, area, floor))
+    except Exception:  # noqa: BLE001 — 부분 실패는 모인 만큼 사용
+        return rows
+    return rows
+
+
+def build_trade_cache(props, key, months=6, workers=8):
+    """모든 물건의 (유형, 법정동코드)를 중복 제거해 한 번씩만 동시 조회.
+    같은 시군구 물건이 수십 건이어도 시세 조회는 시군구당 1회로 줄어든다."""
+    uniq = sorted({(p.get("type"), p.get("lawd_cd")) for p in props
+                   if p.get("lawd_cd") and ENDPOINTS.get(p.get("type"))})
+    if not key or not uniq:
+        return {}
+
+    def work(k):
+        return k, fetch_lawd_trades(k[0], k[1], key, months)
+
+    cache = {}
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+        for k, rows in ex.map(work, uniq):
+            cache[k] = rows
+    print(f"[analyze] 시세 캐시: {len(uniq)}개 (유형·시군구) × {months}개월 동시 조회 완료", file=sys.stderr)
+    return cache
 
 
 def floor_bucket(prop):
@@ -132,14 +151,25 @@ def floor_bucket(prop):
     return "mid"
 
 
-def market_price(prop, key, a):
-    """실거래 중앙값에 층·향 보정 + 최근 거래건수(환금성 신호). 실패 시 override→감정가 폴백."""
-    rows, src = fetch_trades(prop, key)
+def market_price(prop, cache, a):
+    """캐시된 시군구 실거래에서 단지·면적으로 필터 → 중앙값에 층·향 보정.
+    실패 시 override→감정가 폴백. 캐시라 물건당 추가 네트워크 호출 없음."""
+    rows = cache.get((prop.get("type"), prop.get("lawd_cd")))
     if rows:
-        base = statistics.median([p for p, _ in rows])
-        adj = 1 + a["floor_adj"].get(floor_bucket(prop), 0) \
-                + a["orientation_adj"].get(prop.get("orientation", ""), 0)
-        return int(base * adj), f"{src}+보정", len(rows)
+        name = (prop.get("apt_name") or "").strip()
+        area = prop.get("exclusive_area") or 0
+        prices = []
+        for price, nm, ar, _fl in rows:
+            if name and name not in (nm or "") and (nm or "") not in name:
+                continue
+            if area and ar and abs(ar - area) > 10:
+                continue
+            prices.append(price)
+        if prices:
+            base = statistics.median(prices)
+            adj = 1 + a["floor_adj"].get(floor_bucket(prop), 0) \
+                    + a["orientation_adj"].get(prop.get("orientation", ""), 0)
+            return int(base * adj), f"molit({len(prices)})+보정", len(prices)
     if prop.get("market_price_override"):
         return int(prop["market_price_override"]), "override", None
     return int(prop["appraisal"]), "appraisal_fallback", None
@@ -383,9 +413,9 @@ def composite_score(res, a):
 
 
 # ----------------------- 물건 분석 -----------------------
-def analyze_property(prop, baselines, a, history, key):
+def analyze_property(prop, baselines, a, history, cache):
     appr = prop["appraisal"]
-    sale, src, trade_count = market_price(prop, key, a)
+    sale, src, trade_count = market_price(prop, cache, a)
     mean_adj, std, bidders, mean_raw = ratio_and_bidders(prop, sale, baselines, history, a)
     liq = liquidity_score(prop, baselines, a, trade_count)
 
@@ -470,7 +500,11 @@ def main():
     lookback = a.get("history_lookback_days", 30)
     history = filter_recent_history(history_all, lookback)   # 과거 실적은 최근 N일만
 
-    results = [analyze_property(p, baselines, a, history, key) for p in props]
+    months = a.get("molit_months", 6)
+    workers = a.get("molit_workers", 8)
+    cache = build_trade_cache(props, key, months, workers)   # 시군구당 1회, 동시 조회
+
+    results = [analyze_property(p, baselines, a, history, cache) for p in props]
     results.sort(key=lambda r: r["score"], reverse=True)
     save("analysis.json", {
         "generated_at": datetime.now(timezone(timedelta(hours=9))).isoformat(),
