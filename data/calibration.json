@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-24T08:36:57.243761+09:00",
+  "generated_at": "2026-09-25T08:52:14.883054+09:00",
   "how_to_use": "이 파일을 업로드해 예측 오차 기반으로 baselines/assumptions 튜닝을 요청하세요.",
   "assumptions_snapshot": {
     "target_profit_rate": 0.15,
